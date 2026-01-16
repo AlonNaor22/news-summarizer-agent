@@ -1,0 +1,35 @@
+# =====================================================
+# NEWS SUMMARIZER AGENT - DEPENDENCIES
+# =====================================================
+# Install all with: pip install -r requirements.txt
+# =====================================================
+
+# --- LangChain (The "brain" that orchestrates everything) ---
+# LangChain is a framework that makes it easy to build AI applications.
+# Think of it as the "glue" that connects different AI components together.
+langchain>=0.1.0
+
+# This connects LangChain to Claude (Anthropic's AI)
+langchain-anthropic>=0.1.0
+
+# --- Anthropic (Claude AI) ---
+# This is the official library to talk to Claude's API
+anthropic>=0.18.0
+
+# --- News Fetching (Getting articles from the internet) ---
+# feedparser: Reads RSS feeds (like a news subscription format)
+# RSS = Really Simple Syndication - a standard way websites share updates
+feedparser>=6.0.10
+
+# requests: Makes HTTP requests (talks to websites)
+requests>=2.31.0
+
+# beautifulsoup4: Parses HTML (extracts text from web pages)
+beautifulsoup4>=4.12.0
+
+# --- Utilities ---
+# python-dotenv: Loads settings from a .env file (keeps API keys safe)
+python-dotenv>=1.0.0
+
+# python-dateutil: Makes working with dates easier
+python-dateutil>=2.8.0

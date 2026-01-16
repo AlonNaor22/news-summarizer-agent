@@ -1,0 +1,29 @@
+# =====================================================
+# FILES TO IGNORE (not uploaded to GitHub)
+# =====================================================
+
+# Environment variables (contains your secret API keys!)
+.env
+
+# Task specification file (internal use only)
+Task 2 News Summarizer Agent.md
+
+# Python cache files (auto-generated, not needed)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment folder
+venv/
+env/
+.venv/
+
+# IDE settings
+.vscode/
+.idea/
+
+# Output files (generated summaries)
+output/
+
+# Cache folder
+cache/
