@@ -23,11 +23,20 @@ from datetime import datetime
 from dateutil import parser as date_parser
 from typing import Optional
 
+# For making HTTP requests to NewsAPI
+import requests
+
 # Import our settings from config
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import RSS_FEEDS, MAX_ARTICLES_PER_SOURCE
+from config import (
+    RSS_FEEDS,
+    MAX_ARTICLES_PER_SOURCE,
+    NEWS_API_KEY,
+    NEWSAPI_SOURCES,
+    NEWSAPI_CATEGORIES
+)
 
 
 def fetch_from_rss(feed_url: str, source_name: str, max_articles: int = 5) -> list[dict]:
@@ -209,6 +218,243 @@ def display_articles(articles: list[dict]) -> None:
         print(f"URL:         {article['url']}")
         print(f"\nDescription:")
         print(f"  {article['description'][:300]}...")  # First 300 chars
+
+
+# =====================================================
+# NEWSAPI FUNCTIONS
+# =====================================================
+#
+# NewsAPI is an alternative to RSS feeds. It provides:
+# - Access to 80,000+ news sources
+# - Search by keyword, category, or source
+# - Structured JSON responses
+#
+# Free tier: 100 requests/day
+# Sign up: https://newsapi.org/
+#
+# =====================================================
+
+def fetch_from_newsapi(
+    api_key: str,
+    category: str = None,
+    sources: list = None,
+    query: str = None,
+    max_articles: int = 10
+) -> list[dict]:
+    """
+    Fetch articles from NewsAPI.
+
+    NewsAPI offers two main endpoints:
+    1. Top Headlines - Breaking news by category or source
+    2. Everything - Search all articles by keyword
+
+    PARAMETERS:
+    -----------
+    api_key : str
+        Your NewsAPI key
+
+    category : str, optional
+        News category (business, technology, science, health, etc.)
+        Note: Cannot use category AND sources together
+
+    sources : list, optional
+        Specific sources like ["bbc-news", "cnn", "techcrunch"]
+        Note: Cannot use sources AND category together
+
+    query : str, optional
+        Search keyword (e.g., "artificial intelligence")
+
+    max_articles : int
+        Maximum articles to return (default: 10)
+
+    RETURNS:
+    --------
+    list[dict]
+        List of article dictionaries
+
+    EXAMPLE:
+    --------
+    >>> articles = fetch_from_newsapi(
+    ...     api_key="your-key",
+    ...     category="technology",
+    ...     max_articles=5
+    ... )
+    """
+
+    # Base URL for NewsAPI top headlines
+    url = "https://newsapi.org/v2/top-headlines"
+
+    # Build request parameters
+    params = {
+        "apiKey": api_key,
+        "language": "en",
+        "pageSize": max_articles,
+    }
+
+    # Add optional filters
+    # Note: NewsAPI doesn't allow category + sources together
+    if sources:
+        params["sources"] = ",".join(sources)
+    elif category:
+        params["category"] = category
+        params["country"] = "us"  # Required when using category
+
+    if query:
+        params["q"] = query
+
+    print(f"  Fetching from NewsAPI...")
+    if category:
+        print(f"    Category: {category}")
+    if sources:
+        print(f"    Sources: {', '.join(sources)}")
+
+    try:
+        # Make the HTTP request
+        response = requests.get(url, params=params, timeout=10)
+
+        # Check for errors
+        response.raise_for_status()
+
+        # Parse JSON response
+        data = response.json()
+
+        # Check API response status
+        if data.get("status") != "ok":
+            print(f"  NewsAPI error: {data.get('message', 'Unknown error')}")
+            return []
+
+        # Convert NewsAPI format to our format
+        articles = []
+        for item in data.get("articles", []):
+            article = {
+                "title": item.get("title", "No title"),
+                "description": item.get("description") or item.get("content", ""),
+                "url": item.get("url", ""),
+                "source": item.get("source", {}).get("name", "Unknown"),
+                "published": parse_date(item.get("publishedAt", "")),
+                "author": item.get("author"),  # NewsAPI includes author
+                "image_url": item.get("urlToImage"),  # NewsAPI includes images
+            }
+            articles.append(article)
+
+        print(f"  Found {len(articles)} articles from NewsAPI")
+        return articles
+
+    except requests.exceptions.RequestException as e:
+        print(f"  Error fetching from NewsAPI: {e}")
+        return []
+
+
+def fetch_all_newsapi(
+    api_key: str = None,
+    categories: list = None,
+    max_per_category: int = 5
+) -> list[dict]:
+    """
+    Fetch articles from NewsAPI across multiple categories.
+
+    This is similar to fetch_all_news() for RSS, but uses NewsAPI.
+
+    PARAMETERS:
+    -----------
+    api_key : str, optional
+        Your NewsAPI key. Uses config if not provided.
+
+    categories : list, optional
+        Categories to fetch. Uses config if not provided.
+
+    max_per_category : int
+        Max articles per category (default: 5)
+
+    RETURNS:
+    --------
+    list[dict]
+        Combined list of articles from all categories
+    """
+
+    # Use config values if not provided
+    if api_key is None:
+        api_key = NEWS_API_KEY
+
+    if not api_key:
+        print("\n⚠️  NewsAPI key not found!")
+        print("   Add NEWS_API_KEY to your .env file")
+        print("   Get a free key at: https://newsapi.org/")
+        return []
+
+    if categories is None:
+        categories = NEWSAPI_CATEGORIES
+
+    all_articles = []
+
+    print("\n" + "="*50)
+    print("FETCHING NEWS FROM NEWSAPI")
+    print("="*50)
+
+    for category in categories:
+        articles = fetch_from_newsapi(
+            api_key=api_key,
+            category=category,
+            max_articles=max_per_category
+        )
+        all_articles.extend(articles)
+
+    print("="*50)
+    print(f"TOTAL: {len(all_articles)} articles fetched from NewsAPI")
+    print("="*50 + "\n")
+
+    return all_articles
+
+
+def fetch_news(source: str = "rss", max_per_source: int = None) -> list[dict]:
+    """
+    Unified function to fetch news from any source.
+
+    This is the main function to use - it handles both RSS and NewsAPI.
+
+    PARAMETERS:
+    -----------
+    source : str
+        Which source to use:
+        - "rss" (default): Fetch from RSS feeds
+        - "newsapi": Fetch from NewsAPI
+        - "both": Fetch from both sources
+
+    max_per_source : int, optional
+        Maximum articles per source/category
+
+    RETURNS:
+    --------
+    list[dict]
+        List of articles from the specified source(s)
+
+    EXAMPLE:
+    --------
+    >>> articles = fetch_news("rss")        # From RSS feeds
+    >>> articles = fetch_news("newsapi")    # From NewsAPI
+    >>> articles = fetch_news("both")       # From both
+    """
+
+    if max_per_source is None:
+        max_per_source = MAX_ARTICLES_PER_SOURCE
+
+    source = source.lower()
+
+    if source == "rss":
+        return fetch_all_news(max_per_source=max_per_source)
+
+    elif source == "newsapi":
+        return fetch_all_newsapi(max_per_category=max_per_source)
+
+    elif source == "both":
+        rss_articles = fetch_all_news(max_per_source=max_per_source)
+        newsapi_articles = fetch_all_newsapi(max_per_category=max_per_source)
+        return rss_articles + newsapi_articles
+
+    else:
+        print(f"Unknown source: {source}")
+        print("Valid options: rss, newsapi, both")
+        return []
 
 
 # =====================================================

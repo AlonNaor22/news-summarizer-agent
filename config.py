@@ -21,6 +21,11 @@ load_dotenv()
 # Your Anthropic API key (loaded from .env file for security)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
+# NewsAPI key (optional - for fetching from NewsAPI instead of RSS)
+# Get a free key at: https://newsapi.org/
+# Free tier: 100 requests/day
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+
 # =====================================================
 # CLAUDE MODEL SETTINGS
 # =====================================================
@@ -50,6 +55,29 @@ RSS_FEEDS = {
     "NPR News": "https://feeds.npr.org/1001/rss.xml",
     "Reuters World": "https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best",
 }
+
+# =====================================================
+# NEWSAPI SETTINGS (Alternative to RSS)
+# =====================================================
+
+# NewsAPI sources to fetch from
+# Full list: https://newsapi.org/sources
+NEWSAPI_SOURCES = [
+    "bbc-news",
+    "cnn",
+    "techcrunch",
+    "reuters",
+    "the-verge",
+]
+
+# NewsAPI categories (use ONE when fetching top headlines)
+# Options: business, entertainment, general, health, science, sports, technology
+NEWSAPI_CATEGORIES = [
+    "technology",
+    "business",
+    "science",
+    "health",
+]
 
 # =====================================================
 # ARTICLE SETTINGS
