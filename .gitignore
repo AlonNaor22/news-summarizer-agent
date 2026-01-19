@@ -27,3 +27,15 @@ output/
 
 # Cache folder
 cache/
+
+# Node.js
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Misc
+.claude/
+nul
+*.log

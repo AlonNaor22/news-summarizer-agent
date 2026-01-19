@@ -1,0 +1,32 @@
+.sentiment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.sentiment-badge.positive {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.sentiment-badge.negative {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.sentiment-badge.neutral {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.sentiment-emoji {
+  font-size: 0.875rem;
+}
+
+.sentiment-label {
+  text-transform: capitalize;
+}

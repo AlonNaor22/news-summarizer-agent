@@ -1,0 +1,41 @@
+.trending-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.keyword-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  background-color: #f1f5f9;
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  color: var(--text-primary);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.keyword-pill:hover {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.keyword-count {
+  font-size: 0.75em;
+  padding: 0.125rem 0.375rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 9999px;
+}
+
+.keyword-pill:hover .keyword-count {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.no-keywords {
+  color: var(--text-secondary);
+  font-style: italic;
+}

@@ -1,6 +1,8 @@
 # News Summarizer Agent
 
-An AI-powered command-line agent that fetches the latest news articles from multiple sources, summarizes them using Claude AI, categorizes them by topic, analyzes sentiment, detects trends, and allows you to ask follow-up questions about current events.
+An AI-powered news aggregator that fetches the latest news articles from multiple sources, summarizes them using Claude AI, categorizes them by topic, analyzes sentiment, detects trends, and allows you to ask follow-up questions about current events.
+
+**Now with a modern React web interface!**
 
 ## Features
 
@@ -18,118 +20,29 @@ An AI-powered command-line agent that fetches the latest news articles from mult
 - **Statistics**: View word counts, reading times, and category breakdowns
 - **Date Filtering**: Filter articles by today, yesterday, week, or month
 
-### Advanced Features (NEW!)
+### Advanced Features
 - **Sentiment Analysis**: Analyze the emotional tone of articles (positive/negative/neutral)
 - **Trending Topics**: Detect hot topics across all articles using AI
 - **Similar Articles**: Find related articles using keyword and entity matching
 - **Multi-Source Comparison**: Compare how different news sources cover the same story
 
-## Demo
+### Web Interface (NEW!)
+- **Modern React Dashboard**: Beautiful, responsive UI built with React and Vite
+- **Real-time Updates**: See articles as they're fetched and processed
+- **Interactive Charts**: Visualize sentiment distribution and category breakdowns
+- **Chat Interface**: Ask questions about your news in a conversational UI
+- **Source Comparison View**: Side-by-side comparison of how sources cover stories
 
-```
-> fetch
-
-FETCHING NEWS
-============================================================
-Step 1/5: Fetching articles from RSS feeds...
-Step 2/5: Summarizing articles with Claude...
-Step 3/5: Categorizing articles...
-Step 4/5: Extracting keywords and entities...
-Step 5/5: Analyzing sentiment...
-
-FETCH COMPLETE!
-  Total articles: 15
-  Categories: 5
-    - Technology: 4 articles
-    - World News: 3 articles
-    - Business: 3 articles
-  Top keywords: artificial intelligence, climate, stocks
-  Sentiment: 😊 5 positive, 😟 3 negative, 😐 7 neutral
-
-> sentiment
-
-SENTIMENT SUMMARY
-============================================================
-  😊 POSITIVE
-     █████ 5 articles (33.3%)
-
-  😟 NEGATIVE
-     ███ 3 articles (20.0%)
-
-  😐 NEUTRAL
-     ███████ 7 articles (46.7%)
-
-> trending
-
-📈 TRENDING TOPICS
-============================================================
-🔥 MAJOR TRENDS (AI Analysis)
-
-  1. AI Industry Growth 🔴
-     Strength: high (5 articles)
-     Multiple tech companies announcing AI features
-     Keywords: artificial intelligence, technology, smartphones
-
-  2. Climate Policy 🟡
-     Strength: medium (3 articles)
-     International climate discussions and agreements
-     Keywords: climate change, environment, policy
-
-> similar 1
-
-📰 ARTICLES SIMILAR TO:
-   "Apple Unveils New AI-Powered iPhone Features..."
-============================================================
-  1. Google Responds with AI Chatbot Update...
-     Similarity: ████████ 65%
-     Shared keywords: artificial intelligence, technology
-
-  2. Tech Stocks Surge on AI Announcements...
-     Similarity: █████ 45%
-     Shared keywords: technology, artificial intelligence
-
-> compare
-
-📰 MULTI-SOURCE COMPARISON
-============================================================
-📋 STORY: Tech Giants Announce AI Partnership...
-   Sources: TechCrunch, The Guardian, Reuters
-
-📝 SUMMARY:
-   Apple, Google, and Microsoft announced a joint AI safety initiative.
-
-✅ COMMON FACTS (all sources agree):
-   • Three major tech companies forming partnership
-   • Focus on AI safety standards
-
-📊 SOURCE-BY-SOURCE ANALYSIS:
-
-   📰 TechCrunch 😊
-      Tone: positive
-      Focus: Innovation and industry progress
-
-   📰 The Guardian 😐
-      Tone: neutral
-      Focus: Regulatory context and skepticism
-
-   📰 Reuters 😐
-      Tone: neutral
-      Focus: Facts, timeline, official statements
-
-⚡ KEY DIFFERENCES:
-   • TechCrunch emphasizes innovation benefits
-   • The Guardian questions regulatory motivations
-```
-
-## Installation
+## Quick Start (Web Interface)
 
 ### Prerequisites
 
 - Python 3.9 or higher
+- Node.js 18 or higher
 - An Anthropic API key ([get one here](https://console.anthropic.com/))
 - (Optional) A NewsAPI key ([get one here](https://newsapi.org/))
 
-### Setup
+### Installation
 
 1. **Clone the repository**
    ```bash
@@ -137,7 +50,7 @@ SENTIMENT SUMMARY
    cd news-summarizer-agent
    ```
 
-2. **Create a virtual environment**
+2. **Set up Python environment**
    ```bash
    python -m venv venv
 
@@ -146,14 +59,13 @@ SENTIMENT SUMMARY
 
    # macOS/Linux
    source venv/bin/activate
-   ```
 
-3. **Install dependencies**
-   ```bash
+   # Install Python dependencies
    pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    ```
 
-4. **Set up your API key**
+3. **Set up your API key**
    ```bash
    # Copy the example env file
    cp .env.example .env
@@ -163,199 +75,185 @@ SENTIMENT SUMMARY
    # NEWS_API_KEY=xxxxx (optional)
    ```
 
-5. **Run the agent**
+4. **Install frontend dependencies**
    ```bash
-   python main.py
+   cd frontend
+   npm install
+   cd ..
    ```
 
-## Usage
+5. **Start the application**
+
+   **Option A: Using the startup script (Windows)**
+   ```cmd
+   start.bat
+   ```
+
+   **Option B: Manual start (two terminals)**
+
+   Terminal 1 - Backend:
+   ```bash
+   # From project root
+   python -m uvicorn backend.main:app --reload --port 8000
+   ```
+
+   Terminal 2 - Frontend:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+6. **Open the app**
+   - Frontend: http://localhost:5173
+   - API Docs: http://localhost:8000/docs
+
+## Web Interface Screenshots
+
+### Dashboard
+The main dashboard shows:
+- Fetch controls to get news from RSS/NewsAPI
+- Article count and sentiment statistics
+- Sentiment distribution chart
+- Trending keywords
+- Categories breakdown
+
+### Articles Page
+- Browse all fetched articles
+- Filter by category, sentiment, or source
+- Search by keyword
+- Click to view article details
+
+### Article Detail
+- Full summary with sentiment analysis
+- Keywords and entity tags
+- Similar articles suggestions
+- Link to original source
+
+### Trending Page
+- AI-detected themes and patterns
+- Keyword frequency cloud
+- Trending people, organizations, and locations
+
+### Compare Page
+- Find stories covered by multiple sources
+- AI comparison of coverage differences
+- Identify potential bias
+
+### Chat Page
+- Ask questions about your news
+- Conversational memory for follow-ups
+- Suggested questions to get started
+
+## CLI Usage (Alternative)
+
+You can still use the command-line interface:
+
+```bash
+python main.py
+```
 
 ### Available Commands
 
-#### Fetching & Viewing
 | Command | Description |
 |---------|-------------|
-| `fetch` | Fetch news from RSS feeds (default) |
+| `fetch` | Fetch news from RSS feeds |
 | `fetch newsapi` | Fetch from NewsAPI |
-| `fetch both` | Fetch from RSS + NewsAPI |
-| `show` | Display all fetched articles |
-| `show <number>` | Show specific article in detail |
-| `category` | List all categories |
-| `category <name>` | Show articles in a specific category |
-
-#### Search & Filter
-| Command | Description |
-|---------|-------------|
-| `search <keyword>` | Search articles by keyword |
-| `filter today` | Show articles from today |
-| `filter week` | Show articles from last 7 days |
-
-#### Advanced Analysis (NEW!)
-| Command | Description |
-|---------|-------------|
-| `sentiment` | Show sentiment breakdown (positive/negative/neutral) |
-| `sentiment <type>` | Filter by sentiment (e.g., `sentiment positive`) |
-| `trending` | Detect trending topics using AI |
-| `trending fast` | Quick trend analysis (keywords only, no AI) |
-| `similar <number>` | Find articles similar to article # |
-| `related` | Show all article relationships |
-| `compare` | Compare same story across different sources |
-
-#### Utilities
-| Command | Description |
-|---------|-------------|
-| `tags` | Show trending keywords and entities |
-| `tags <number>` | Show tags for a specific article |
-| `stats` | Show overall statistics |
-| `save` | Save articles as JSON (default) |
-| `save md` | Save articles as Markdown |
-| `ask <question>` | Ask a question about the articles |
-| `sources` | List available news sources |
-| `clear` | Clear conversation history |
-| `help` | Show available commands |
-| `quit` | Exit the program |
-
-### Example Session
-
-```bash
-# Start the agent
-python main.py
-
-# Fetch the latest news (includes sentiment analysis)
-> fetch
-
-# View sentiment breakdown
-> sentiment
-
-# See only positive news
-> sentiment positive
-
-# Detect trending topics
-> trending
-
-# Find articles similar to article #1
-> similar 1
-
-# See all article relationships
-> related
-
-# Compare how different sources cover the same story
-# (works best with 'fetch both' to get multiple sources)
-> fetch both
-> compare
-
-# Ask questions (supports follow-ups!)
-> ask What are the main headlines today?
-> ask Tell me more about the first one
-
-# Save to file
-> save md
-
-# Exit
-> quit
-```
+| `show` | Display all articles |
+| `sentiment` | Show sentiment breakdown |
+| `trending` | Detect trending topics |
+| `similar <n>` | Find similar articles |
+| `compare` | Compare multi-source stories |
+| `ask <question>` | Ask about the articles |
+| `help` | Show all commands |
 
 ## Project Structure
 
 ```
 news-summarizer-agent/
-├── main.py               # CLI entry point (all features integrated)
-├── config.py             # Configuration settings
-├── requirements.txt      # Python dependencies
-├── .env.example          # API key template
-├── .gitignore            # Git ignore rules
-├── README.md             # This file
+├── main.py                 # CLI entry point
+├── config.py               # Configuration settings
+├── requirements.txt        # Python dependencies
+├── start.bat               # Windows startup script
+├── start.sh                # macOS/Linux startup script
 │
-├── src/
-│   ├── __init__.py       # Package init
-│   │
-│   │   # Core Modules
-│   ├── news_fetcher.py   # RSS feed + NewsAPI fetching
-│   ├── summarizer.py     # Claude AI summarization
-│   ├── categorizer.py    # Topic classification
-│   ├── tagger.py         # Keyword & entity extraction
-│   ├── qa_chain.py       # Q&A with memory
-│   │
-│   │   # Advanced Modules (NEW!)
-│   ├── sentiment.py      # Sentiment analysis (positive/negative/neutral)
-│   ├── trending.py       # Trending topics detection
-│   ├── similarity.py     # Article relationship detection
-│   └── comparator.py     # Multi-source story comparison
+├── backend/                # FastAPI backend (NEW!)
+│   ├── main.py             # FastAPI app entry point
+│   ├── requirements.txt    # Backend dependencies
+│   └── api/
+│       ├── dependencies.py # Shared state management
+│       └── routes/
+│           ├── articles.py # Article endpoints
+│           ├── sentiment.py# Sentiment endpoints
+│           ├── trending.py # Trending endpoints
+│           ├── similarity.py # Similar articles
+│           ├── comparison.py # Source comparison
+│           └── qa.py       # Q&A endpoints
 │
-└── output/               # Saved summaries (generated)
-    ├── news_2026-01-18.json
-    └── news_2026-01-18.md
+├── frontend/               # React frontend (NEW!)
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── App.jsx
+│       ├── services/
+│       │   └── api.js      # API client
+│       ├── components/
+│       │   ├── Navbar.jsx
+│       │   ├── ArticleCard.jsx
+│       │   ├── SentimentBadge.jsx
+│       │   └── ...
+│       └── pages/
+│           ├── Dashboard.jsx
+│           ├── Articles.jsx
+│           ├── ArticleDetail.jsx
+│           ├── Trending.jsx
+│           ├── Compare.jsx
+│           └── Chat.jsx
+│
+├── src/                    # Core AI modules
+│   ├── news_fetcher.py     # RSS + NewsAPI fetching
+│   ├── summarizer.py       # Claude AI summarization
+│   ├── categorizer.py      # Topic classification
+│   ├── tagger.py           # Keyword extraction
+│   ├── sentiment.py        # Sentiment analysis
+│   ├── trending.py         # Trend detection
+│   ├── similarity.py       # Article relationships
+│   ├── comparator.py       # Multi-source comparison
+│   └── qa_chain.py         # Q&A with memory
+│
+└── output/                 # Saved summaries
 ```
 
-## How It Works
+## API Endpoints
 
-### Architecture
+The FastAPI backend provides these endpoints:
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   RSS Feeds     │     │   Summarizer    │     │  Categorizer    │
-│   + NewsAPI     │ --> │  (Claude AI)    │ --> │  (Claude AI)    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                        │
-                                                        v
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│     Tagger      │ --> │    Sentiment    │ --> │   Store in      │
-│  (Claude AI)    │     │   (Claude AI)   │     │   Agent State   │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                        │
-        ┌───────────────────────────────────────────────┤
-        │                       │                       │
-        v                       v                       v
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│    Trending     │     │   Similarity    │     │   Comparator    │
-│   Detection     │     │    Matching     │     │  (Multi-Source) │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                       │                       │
-        └───────────────────────┼───────────────────────┘
-                                v
-                    ┌─────────────────────┐
-                    │    User CLI +       │
-                    │    Q&A Chain        │
-                    │    (with memory)    │
-                    └─────────────────────┘
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/fetch` | POST | Fetch and process articles |
+| `/api/articles` | GET | Get all articles (with filters) |
+| `/api/articles/{id}` | GET | Get single article |
+| `/api/sentiment` | GET | Sentiment summary |
+| `/api/trending` | GET | Trending topics |
+| `/api/articles/{id}/similar` | GET | Similar articles |
+| `/api/comparison` | GET | Source comparisons |
+| `/api/qa/ask` | POST | Ask a question |
 
-### Technologies Used
+Full API documentation available at http://localhost:8000/docs
 
+## Technologies Used
+
+### Backend
+- **[FastAPI](https://fastapi.tiangolo.com/)** - Modern Python web framework
 - **[LangChain](https://python.langchain.com/)** - AI application framework
-- **[Claude AI](https://www.anthropic.com/claude)** - Large language model for all AI tasks
+- **[Claude AI](https://www.anthropic.com/claude)** - Large language model
 - **[feedparser](https://feedparser.readthedocs.io/)** - RSS feed parsing
-- **[NewsAPI](https://newsapi.org/)** - News aggregator API (optional)
-- **Python 3.9+** - Programming language
+- **[NewsAPI](https://newsapi.org/)** - News aggregator API
 
-### Key LangChain Concepts
-
-This project demonstrates several LangChain patterns:
-
-#### Core Concepts
-1. **Prompt Templates** - Structured prompts with variables (`ChatPromptTemplate`)
-2. **Chains (LCEL)** - Connecting prompt → LLM → parser using `|` operator
-3. **Output Parsing** - Cleaning and validating AI responses (`StrOutputParser`)
-4. **Conversation Memory** - Maintaining chat history with `MessagesPlaceholder`
-
-#### Advanced Concepts (NEW!)
-5. **Structured Output** - Getting specific formats from LLM (sentiment, trends)
-6. **Multi-Document Reasoning** - Analyzing patterns across multiple articles
-7. **Temperature Tuning** - Low temp (0.1) for classification, higher (0.3) for insights
-8. **Batch Processing** - Sending all articles at once for holistic analysis
-9. **Multi-Source Comparison** - Comparing different perspectives on same event
-
-### LangChain Patterns by Module
-
-| Module | LangChain Pattern | Temperature |
-|--------|-------------------|-------------|
-| `summarizer.py` | Basic Chain (prompt \| llm \| parser) | 0.3 |
-| `categorizer.py` | Classification with validation | 0.1 |
-| `qa_chain.py` | Memory with MessagesPlaceholder | 0.3 |
-| `sentiment.py` | Structured output parsing | 0.1 |
-| `trending.py` | Multi-document reasoning | 0.3 |
-| `similarity.py` | Pairwise comparison | 0.2 |
-| `comparator.py` | Multi-source analysis | 0.2 |
+### Frontend
+- **[React](https://react.dev/)** - UI framework
+- **[Vite](https://vitejs.dev/)** - Build tool
+- **[React Router](https://reactrouter.com/)** - Client-side routing
+- **[Axios](https://axios-http.com/)** - HTTP client
 
 ## Configuration
 
@@ -363,19 +261,13 @@ Edit `config.py` to customize:
 
 ```python
 # Change the Claude model
-MODEL_NAME = "claude-sonnet-4-5-20250929"  # or "claude-haiku-4-5-20251001"
-
-# Adjust creativity (0 = focused, 1 = creative)
-TEMPERATURE = 0.3
+MODEL_NAME = "claude-sonnet-4-5-20250929"
 
 # Add more RSS feeds
 RSS_FEEDS = {
     "BBC News": "http://feeds.bbci.co.uk/news/rss.xml",
     "Your Source": "https://example.com/rss",
 }
-
-# NewsAPI sources
-NEWSAPI_SOURCES = ["bbc-news", "cnn", "techcrunch", "reuters"]
 
 # Modify categories
 CATEGORIES = ["Politics", "Business", "Technology", ...]
@@ -384,36 +276,34 @@ CATEGORIES = ["Politics", "Business", "Technology", ...]
 ## Troubleshooting
 
 ### "ANTHROPIC_API_KEY not found"
-Make sure you've created a `.env` file with your API key:
+Create a `.env` file with your API key:
 ```
 ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
 ```
 
-### "No articles found"
-- Check your internet connection
-- Some RSS feeds may be temporarily unavailable
-- Try running `fetch` again or use `fetch newsapi`
+### Backend won't start
+Make sure you've installed backend dependencies:
+```bash
+pip install -r backend/requirements.txt
+```
 
-### Rate limiting
-If you hit API rate limits, wait a few moments and try again. Consider using `claude-haiku-4-5-20251001` for faster, cheaper requests.
+### Frontend won't start
+Make sure you've installed Node.js dependencies:
+```bash
+cd frontend
+npm install
+```
 
-### NewsAPI not working
-- Make sure you have a valid NEWS_API_KEY in your `.env` file
-- Free tier is limited to 100 requests/day
-- Use `sources` command to check if API key is configured
-
-### "No stories found for comparison"
-- Use `fetch both` to get articles from multiple sources
-- The compare feature needs the same story covered by different outlets
-- Try fetching more articles or different time periods
+### CORS errors in browser
+Make sure the backend is running on port 8000 before starting the frontend.
 
 ## Contributing
 
 Contributions are welcome! Feel free to:
-- Add new RSS feed sources
-- Improve summarization prompts
-- Add new features (email digest, web UI, etc.)
-- Fix bugs and improve documentation
+- Add new features
+- Improve the UI
+- Fix bugs
+- Improve documentation
 
 ## License
 

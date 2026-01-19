@@ -210,7 +210,7 @@ def categorize_article(article: dict) -> dict:
     category = clean_category(raw_response)
     article["category"] = category
 
-    print(f"    → {category}")
+    print(f"    -> {category}")
 
     return article
 
@@ -390,8 +390,8 @@ def categorize_article_multi(article: dict) -> dict:
 
     # Display result
     secondary_str = ", ".join(parsed["secondary"]) if parsed["secondary"] else "None"
-    print(f"    → Primary: {parsed['primary']}")
-    print(f"    → Secondary: {secondary_str}")
+    print(f"    -> Primary: {parsed['primary']}")
+    print(f"    -> Secondary: {secondary_str}")
 
     return article
 

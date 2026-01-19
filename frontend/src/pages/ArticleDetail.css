@@ -1,0 +1,242 @@
+.article-detail-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.back-link {
+  margin-bottom: 1.5rem;
+}
+
+.back-link a {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.back-link a:hover {
+  color: var(--primary-color);
+}
+
+.error-state {
+  text-align: center;
+  padding: 3rem;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.error-state h2 {
+  margin-bottom: 0.5rem;
+}
+
+.error-state p {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.article-content {
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.article-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.article-meta-top {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.article-source {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  text-transform: uppercase;
+}
+
+.article-category {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background-color: var(--background-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.article-content h1 {
+  font-size: 1.75rem;
+  line-height: 1.3;
+  margin-bottom: 1rem;
+}
+
+.article-meta-bottom {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.article-date {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.article-summary,
+.article-sentiment-reason,
+.article-tags,
+.article-original {
+  margin-bottom: 1.5rem;
+}
+
+.article-summary h2,
+.article-sentiment-reason h2,
+.article-tags h2 {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.article-summary p,
+.article-sentiment-reason p {
+  line-height: 1.7;
+  font-size: 1rem;
+}
+
+.sentiment-detail {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.confidence {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.tag-group {
+  margin-bottom: 1rem;
+}
+
+.tag-group h3 {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+
+.tag.keyword {
+  background-color: #e0e7ff;
+  color: #4338ca;
+}
+
+.tag.keyword:hover {
+  background-color: #c7d2fe;
+  text-decoration: none;
+}
+
+.tag.person {
+  background-color: #fce7f3;
+  color: #be185d;
+}
+
+.tag.organization {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.tag.location {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+  text-decoration: none;
+}
+
+.similar-articles {
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.similar-articles h2 {
+  font-size: 1.125rem;
+  margin-bottom: 1rem;
+}
+
+.similar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.similar-item {
+  display: block;
+  padding: 0.75rem;
+  background-color: var(--background-color);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.similar-item:hover {
+  background-color: var(--border-color);
+  text-decoration: none;
+}
+
+.similar-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+}
+
+.similar-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.similar-score {
+  color: var(--primary-color);
+}

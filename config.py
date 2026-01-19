@@ -109,3 +109,22 @@ CATEGORIES = [
 
 # How many previous exchanges to remember in conversation
 MEMORY_SIZE = 10
+
+# =====================================================
+# WEB APP SETTINGS (for React frontend)
+# =====================================================
+
+# CORS allowed origins for the FastAPI backend
+CORS_ORIGINS = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:3000",  # Alternative React port
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+# Backend server settings
+BACKEND_HOST = "0.0.0.0"
+BACKEND_PORT = 8000
+
+# Frontend server settings
+FRONTEND_PORT = 5173

@@ -320,14 +320,14 @@ def analyze_sentiment(article: dict) -> dict:
     article["sentiment_confidence"] = parsed["confidence"]
     article["sentiment_reason"] = parsed["reason"]
 
-    # Display result with emoji
-    emoji = {
-        "positive": "😊",
-        "negative": "😟",
-        "neutral": "😐"
-    }.get(parsed["sentiment"], "😐")
+    # Display result with indicator
+    indicator = {
+        "positive": "[+]",
+        "negative": "[-]",
+        "neutral": "[=]"
+    }.get(parsed["sentiment"], "[=]")
 
-    print(f"    → {emoji} {parsed['sentiment']} ({parsed['confidence']} confidence)")
+    print(f"    -> {indicator} {parsed['sentiment']} ({parsed['confidence']} confidence)")
 
     return article
 

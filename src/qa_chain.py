@@ -132,7 +132,7 @@ class NewsQAChain:
         self.articles = articles
         self.chat_history = []  # Reset conversation when new articles loaded
 
-        print(f"\n✓ Loaded {len(articles)} articles into Q&A system")
+        print(f"\n[OK] Loaded {len(articles)} articles into Q&A system")
         print("  You can now ask questions about these articles!")
 
     def _format_articles_for_context(self) -> str:
@@ -220,7 +220,7 @@ Summary: {article.get('summary', article.get('description', 'No summary availabl
         Use this to start a fresh conversation about the same articles.
         """
         self.chat_history = []
-        print("✓ Conversation history cleared")
+        print("[OK] Conversation history cleared")
 
     def get_history(self) -> list:
         """
