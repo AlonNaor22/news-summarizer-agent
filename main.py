@@ -4,10 +4,19 @@
 #
 # This is the main entry point for the application.
 # It ties together all our modules:
-#   - news_fetcher.py (Phase 2)
-#   - summarizer.py (Phase 3)
-#   - categorizer.py (Phase 4)
-#   - qa_chain.py (Phase 5)
+#
+# CORE MODULES (Must-Have):
+#   - news_fetcher.py - Fetch from RSS/NewsAPI
+#   - summarizer.py - Summarize with Claude
+#   - categorizer.py - Classify by topic
+#   - qa_chain.py - Q&A with memory
+#   - tagger.py - Extract keywords/entities
+#
+# ADVANCED MODULES (Nice-to-Have):
+#   - sentiment.py - Analyze article tone
+#   - trending.py - Detect trending topics
+#   - similarity.py - Find related articles
+#   - comparator.py - Compare sources on same story
 #
 # Run with: python main.py
 #
@@ -18,11 +27,28 @@ import os
 from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 
+# -------------------------------------------------
+# CORE MODULE IMPORTS
+# -------------------------------------------------
 from src.news_fetcher import fetch_all_news, fetch_from_rss, fetch_news
 from src.summarizer import summarize_articles
 from src.categorizer import categorize_articles, group_by_category
 from src.qa_chain import NewsQAChain
 from src.tagger import tag_articles, get_all_keywords, get_all_entities
+
+# -------------------------------------------------
+# ADVANCED MODULE IMPORTS
+# -------------------------------------------------
+# These are the modules we built for advanced features:
+# - Sentiment: Analyzes positive/negative/neutral tone
+# - Trending: Finds hot topics across articles
+# - Similarity: Links related articles together
+# - Comparator: Compares same story from different sources
+from src.sentiment import analyze_sentiments, get_sentiment_summary, filter_by_sentiment, display_sentiment_summary
+from src.trending import detect_trends, display_trends
+from src.similarity import find_similar_articles, analyze_article_relationships, display_similar_articles, display_all_relationships
+from src.comparator import compare_all_stories, display_all_comparisons, find_same_story_articles
+
 from config import RSS_FEEDS, CATEGORIES, NEWSAPI_SOURCES, NEWSAPI_CATEGORIES, NEWS_API_KEY
 
 
@@ -31,10 +57,19 @@ class NewsSummarizerAgent:
     The main News Summarizer Agent.
 
     This class orchestrates the entire workflow:
-    1. Fetch news from RSS feeds
+
+    CORE FEATURES:
+    1. Fetch news from RSS feeds or NewsAPI
     2. Summarize articles with Claude
     3. Categorize articles by topic
-    4. Answer questions about the news
+    4. Extract keywords and entities
+    5. Answer questions about the news
+
+    ADVANCED FEATURES:
+    6. Analyze sentiment (positive/negative/neutral)
+    7. Detect trending topics
+    8. Find similar/related articles
+    9. Compare same story across sources
 
     USAGE:
     ------
@@ -44,9 +79,22 @@ class NewsSummarizerAgent:
 
     def __init__(self):
         """Initialize the agent with empty state."""
+        # -------------------------------------------------
+        # CORE STATE
+        # -------------------------------------------------
         self.articles = []          # Fetched and processed articles
         self.qa_chain = None        # Q&A system (created after fetching)
         self.is_running = True      # Controls main loop
+
+        # -------------------------------------------------
+        # ADVANCED FEATURE CACHES
+        # -------------------------------------------------
+        # We cache results from expensive operations so they
+        # don't need to be recalculated every time.
+        # These are cleared when new articles are fetched.
+        self.trends_cache = None           # Cached trending topics
+        self.relationships_cache = None    # Cached article relationships
+        self.comparisons_cache = None      # Cached source comparisons
 
     def display_welcome(self):
         """Show welcome message and available commands."""
@@ -71,6 +119,9 @@ Type 'fetch' to get started!
         print("AVAILABLE COMMANDS")
         print("-"*60)
         print("""
+  ─────────────────────────────────────────────────────────
+  FETCHING & VIEWING
+  ─────────────────────────────────────────────────────────
   fetch              Fetch news from RSS feeds (default)
   fetch rss          Fetch from RSS feeds only
   fetch newsapi      Fetch from NewsAPI only
@@ -82,47 +133,59 @@ Type 'fetch' to get started!
   category           List all categories
   category <name>    Show articles in a specific category
 
+  ─────────────────────────────────────────────────────────
+  SEARCH & FILTER
+  ─────────────────────────────────────────────────────────
+  search <keyword>   Search articles by keyword
+  filter today       Show articles from today
+  filter week        Show articles from last 7 days
+
+  ─────────────────────────────────────────────────────────
+  ADVANCED ANALYSIS (NEW!)
+  ─────────────────────────────────────────────────────────
+  sentiment          Show sentiment breakdown (positive/negative/neutral)
+  sentiment <type>   Filter by sentiment (positive/negative/neutral)
+
+  trending           Detect and show trending topics
+  trending fast      Quick analysis (keywords only, no AI)
+
+  similar <number>   Find articles similar to article #
+  related            Show all article relationships
+
+  compare            Compare same story across different sources
+
+  ─────────────────────────────────────────────────────────
+  UTILITIES
+  ─────────────────────────────────────────────────────────
   tags               Show trending keywords and entities
   tags <number>      Show tags for a specific article
-
-  search <keyword>   Search articles by keyword
-                     (searches titles, summaries, tags)
-
-  save               Save articles as JSON (default)
-  save json          Save articles as JSON file
-  save md            Save articles as Markdown file
 
   stats              Show overall statistics
   stats <number>     Show stats for a specific article
 
-  filter today       Show articles from today
-  filter yesterday   Show articles from yesterday
-  filter week        Show articles from last 7 days
-  filter month       Show articles from last 30 days
+  save               Save articles as JSON (default)
+  save md            Save articles as Markdown file
 
   ask <question>     Ask a question about the articles
-                     (supports follow-up questions!)
 
   sources            List available news sources
-
   clear              Clear conversation history
-
   help               Show this help message
-
   quit / exit        Exit the program
 """)
         print("-"*60)
 
     def fetch_news(self, source: str = "rss"):
         """
-        Fetch, summarize, and categorize news.
+        Fetch, summarize, categorize, and analyze news.
 
         This is the main pipeline that:
         1. Fetches articles from the specified source
         2. Summarizes each article with Claude
         3. Categorizes articles by topic
         4. Extracts keywords and entities
-        5. Sets up Q&A system
+        5. Analyzes sentiment (NEW!)
+        6. Sets up Q&A system
 
         PARAMETERS:
         -----------
@@ -133,6 +196,14 @@ Type 'fetch' to get started!
         print("FETCHING NEWS")
         print("="*60)
 
+        # -------------------------------------------------
+        # Clear caches from previous fetch
+        # -------------------------------------------------
+        # When we fetch new articles, old analysis is invalid
+        self.trends_cache = None
+        self.relationships_cache = None
+        self.comparisons_cache = None
+
         # Step 1: Fetch articles from the specified source
         source_name = {
             "rss": "RSS feeds",
@@ -140,7 +211,7 @@ Type 'fetch' to get started!
             "both": "RSS feeds and NewsAPI"
         }.get(source, "RSS feeds")
 
-        print(f"\nStep 1/4: Fetching articles from {source_name}...")
+        print(f"\nStep 1/5: Fetching articles from {source_name}...")
         raw_articles = fetch_news(source=source, max_per_source=3)
 
         if not raw_articles:
@@ -148,18 +219,22 @@ Type 'fetch' to get started!
             return
 
         # Step 2: Summarize articles
-        print("\nStep 2/4: Summarizing articles with Claude...")
+        print("\nStep 2/5: Summarizing articles with Claude...")
         summarized = summarize_articles(raw_articles)
 
         # Step 3: Categorize articles
-        print("\nStep 3/4: Categorizing articles...")
+        print("\nStep 3/5: Categorizing articles...")
         categorized = categorize_articles(summarized)
 
         # Step 4: Extract keywords and entities
-        print("\nStep 4/4: Extracting keywords and entities...")
-        self.articles = tag_articles(categorized)
+        print("\nStep 4/5: Extracting keywords and entities...")
+        tagged = tag_articles(categorized)
 
-        # Step 5: Set up Q&A system
+        # Step 5: Analyze sentiment (NEW!)
+        print("\nStep 5/5: Analyzing sentiment...")
+        self.articles = analyze_sentiments(tagged)
+
+        # Step 6: Set up Q&A system
         self.qa_chain = NewsQAChain()
         self.qa_chain.load_articles(self.articles)
 
@@ -181,7 +256,14 @@ Type 'fetch' to get started!
             top_keywords = list(all_keywords.keys())[:5]
             print(f"  Top keywords: {', '.join(top_keywords)}")
 
-        print("\nType 'show' to see articles or 'ask <question>' to ask about them.")
+        # Show sentiment breakdown (NEW!)
+        sentiment_summary = get_sentiment_summary(self.articles)
+        print(f"  Sentiment: 😊 {sentiment_summary['positive']} positive, "
+              f"😟 {sentiment_summary['negative']} negative, "
+              f"😐 {sentiment_summary['neutral']} neutral")
+
+        print("\nType 'show' to see articles, 'sentiment' for mood analysis,")
+        print("or 'trending' to see what's hot!")
 
     def show_articles(self, article_num=None):
         """
@@ -208,6 +290,14 @@ Type 'fetch' to get started!
                 print(f"Category: {article.get('category', 'Uncategorized')}")
                 print(f"Date:     {article.get('published', 'Unknown')}")
                 print(f"Reading:  {stats['reading_time_display']} ({stats['word_count']} words)")
+
+                # Show sentiment (NEW!)
+                sentiment = article.get('sentiment', 'unknown')
+                sentiment_emoji = {"positive": "😊", "negative": "😟", "neutral": "😐"}.get(sentiment, "❓")
+                print(f"Sentiment: {sentiment_emoji} {sentiment}")
+                if article.get('sentiment_reason'):
+                    print(f"          ({article['sentiment_reason']})")
+
                 print(f"\nSummary:")
                 print(f"  {article.get('summary', 'No summary available')}")
 
@@ -1019,6 +1109,282 @@ Type 'fetch' to get started!
         else:
             print("\nNo conversation history to clear.")
 
+    # =====================================================
+    # ADVANCED FEATURE METHODS (NEW!)
+    # =====================================================
+    #
+    # These methods implement the advanced features we built:
+    # - Sentiment analysis
+    # - Trending topics detection
+    # - Similar article discovery
+    # - Multi-source comparison
+    #
+    # =====================================================
+
+    def show_sentiment(self, sentiment_filter: str = None):
+        """
+        Show sentiment analysis for articles.
+
+        If sentiment_filter is provided, show only articles with that sentiment.
+        Otherwise, show overall sentiment breakdown.
+
+        PARAMETERS:
+        -----------
+        sentiment_filter : str, optional
+            Filter by: "positive", "negative", or "neutral"
+
+        LANGCHAIN CONNECTION:
+        ---------------------
+        This uses the sentiment.py module which:
+        1. Sends each article to Claude
+        2. Claude classifies as positive/negative/neutral
+        3. Returns structured sentiment data
+        """
+        if not self.articles:
+            print("\nNo articles loaded. Use 'fetch' first.")
+            return
+
+        # Filter by specific sentiment
+        if sentiment_filter:
+            sentiment_filter = sentiment_filter.lower()
+            if sentiment_filter not in ["positive", "negative", "neutral"]:
+                print(f"\nInvalid sentiment: {sentiment_filter}")
+                print("Valid options: positive, negative, neutral")
+                return
+
+            filtered = filter_by_sentiment(self.articles, sentiment_filter)
+
+            emoji = {"positive": "😊", "negative": "😟", "neutral": "😐"}[sentiment_filter]
+            print("\n" + "="*60)
+            print(f"{emoji} {sentiment_filter.upper()} ARTICLES")
+            print("="*60)
+
+            if not filtered:
+                print(f"\nNo {sentiment_filter} articles found.")
+                return
+
+            print(f"\nFound {len(filtered)} {sentiment_filter} article(s):\n")
+
+            for article in filtered:
+                # Find original index
+                original_idx = self.articles.index(article) + 1
+                title = article['title'][:45]
+                reason = article.get('sentiment_reason', '')[:50]
+
+                print(f"  [{original_idx}] {title}...")
+                print(f"      {reason}")
+                print()
+
+            return
+
+        # Show overall sentiment breakdown
+        display_sentiment_summary(self.articles)
+
+        print("\n" + "-"*60)
+        print("Tip: Use 'sentiment positive' to see only positive news")
+        print("     Use 'sentiment negative' to see concerning news")
+
+    def show_trending(self, use_llm: bool = True):
+        """
+        Show trending topics across all articles.
+
+        PARAMETERS:
+        -----------
+        use_llm : bool
+            If True, use Claude for smart trend analysis
+            If False, use fast keyword counting only
+
+        LANGCHAIN CONNECTION:
+        ---------------------
+        When use_llm=True, this:
+        1. Sends ALL articles to Claude at once
+        2. Claude identifies themes that span multiple articles
+        3. Returns grouped trends with explanations
+
+        This demonstrates MULTI-DOCUMENT REASONING - one of
+        the powerful patterns in LangChain.
+        """
+        if not self.articles:
+            print("\nNo articles loaded. Use 'fetch' first.")
+            return
+
+        # Use cached results if available
+        if self.trends_cache and self.trends_cache.get("use_llm") == use_llm:
+            print("\n(Using cached trend analysis)")
+            display_trends(self.trends_cache["data"])
+            return
+
+        # Run trend detection
+        trends = detect_trends(self.articles, use_llm=use_llm)
+
+        # Cache results
+        self.trends_cache = {
+            "use_llm": use_llm,
+            "data": trends
+        }
+
+        # Display
+        display_trends(trends)
+
+        if use_llm:
+            print("\n" + "-"*60)
+            print("Tip: Use 'trending fast' for quick analysis without AI")
+
+    def show_similar(self, article_num: int):
+        """
+        Find articles similar to a specific article.
+
+        PARAMETERS:
+        -----------
+        article_num : int
+            The article number to find similar ones for (1-indexed)
+
+        HOW IT WORKS:
+        -------------
+        1. Takes the target article
+        2. Compares it against all other articles
+        3. Uses keyword overlap and entity matching
+        4. Returns articles above a similarity threshold
+
+        This uses JACCARD SIMILARITY to measure overlap.
+        """
+        if not self.articles:
+            print("\nNo articles loaded. Use 'fetch' first.")
+            return
+
+        if not (1 <= article_num <= len(self.articles)):
+            print(f"\nInvalid article number. Choose between 1 and {len(self.articles)}")
+            return
+
+        target = self.articles[article_num - 1]
+
+        print(f"\n🔍 Finding articles similar to #{article_num}...")
+
+        # Find similar articles
+        similar = find_similar_articles(
+            target_article=target,
+            all_articles=self.articles,
+            threshold=0.15,  # Lower threshold to find more matches
+            max_results=5
+        )
+
+        # Display results
+        display_similar_articles(target, similar)
+
+        if similar:
+            print("\n" + "-"*60)
+            print("Tip: Use 'show <number>' to read a similar article")
+
+    def show_related(self):
+        """
+        Show all relationships between articles.
+
+        This analyzes ALL article pairs and shows:
+        1. Statistical relationships (keyword overlap)
+        2. LLM-detected relationships (semantic understanding)
+
+        LANGCHAIN CONNECTION:
+        ---------------------
+        The LLM analysis sends all articles to Claude and asks
+        it to identify which articles are related and WHY.
+        This captures relationships that keyword matching misses.
+        """
+        if not self.articles:
+            print("\nNo articles loaded. Use 'fetch' first.")
+            return
+
+        if len(self.articles) < 2:
+            print("\nNeed at least 2 articles to find relationships.")
+            return
+
+        # Use cached results if available
+        if self.relationships_cache:
+            print("\n(Using cached relationship analysis)")
+            display_all_relationships(self.relationships_cache)
+            return
+
+        print("\n🔍 Analyzing article relationships...")
+
+        # Run relationship analysis
+        analysis = analyze_article_relationships(self.articles, use_llm=True)
+
+        # Cache results
+        self.relationships_cache = analysis
+
+        # Display
+        display_all_relationships(analysis)
+
+    def show_comparison(self):
+        """
+        Compare how different sources cover the same story.
+
+        This is the most advanced feature:
+        1. Finds articles covering the SAME event
+        2. Compares how each source frames the story
+        3. Identifies differences in tone, facts, and bias
+
+        LANGCHAIN CONNECTION:
+        ---------------------
+        Uses Claude for deep multi-document comparison:
+        - Identifies common facts vs unique details
+        - Detects framing differences
+        - Spots potential bias
+
+        This demonstrates MULTI-SOURCE COMPARISON - analyzing
+        how different perspectives describe the same event.
+        """
+        if not self.articles:
+            print("\nNo articles loaded. Use 'fetch' first.")
+            return
+
+        if len(self.articles) < 2:
+            print("\nNeed at least 2 articles to compare sources.")
+            return
+
+        # Check if we have articles from different sources
+        sources = set(art.get("source", "") for art in self.articles)
+        if len(sources) < 2:
+            print("\nAll articles are from the same source.")
+            print("Use 'fetch both' to get articles from multiple sources.")
+            return
+
+        # Use cached results if available
+        if self.comparisons_cache:
+            print("\n(Using cached comparison analysis)")
+            display_all_comparisons(self.comparisons_cache)
+            return
+
+        print("\n🔍 Looking for same stories covered by multiple sources...")
+
+        # First, show what story groups were found
+        story_groups = find_same_story_articles(self.articles)
+
+        if not story_groups:
+            print("\nNo stories found that are covered by multiple sources.")
+            print("\nThis can happen when:")
+            print("  - Articles are about different topics")
+            print("  - Sources are covering different events")
+            print("\nTry 'fetch both' to get more diverse coverage.")
+            return
+
+        print(f"\nFound {len(story_groups)} story/stories with multiple source coverage:")
+        for i, group in enumerate(story_groups, 1):
+            print(f"  {i}. \"{group['story_title'][:40]}...\"")
+            print(f"     Sources: {', '.join(group['sources'])}")
+
+        # Run comparison
+        comparisons = compare_all_stories(self.articles)
+
+        # Cache results
+        self.comparisons_cache = comparisons
+
+        # Display
+        display_all_comparisons(comparisons)
+
+        print("\n" + "-"*60)
+        print("Tip: This analysis shows how different outlets")
+        print("     frame the same story - helpful for spotting bias!")
+
     def process_command(self, user_input: str):
         """
         Process a user command.
@@ -1121,6 +1487,41 @@ Type 'fetch' to get started!
 
         elif command == 'clear':
             self.clear_history()
+
+        # -------------------------------------------------
+        # ADVANCED FEATURE COMMANDS (NEW!)
+        # -------------------------------------------------
+
+        elif command == 'sentiment':
+            # sentiment OR sentiment <type>
+            self.show_sentiment(args)
+
+        elif command == 'trending':
+            # trending OR trending fast
+            if args and args.lower() == "fast":
+                self.show_trending(use_llm=False)
+            else:
+                self.show_trending(use_llm=True)
+
+        elif command == 'similar':
+            # similar <number>
+            if args:
+                try:
+                    num = int(args)
+                    self.show_similar(num)
+                except ValueError:
+                    print("Usage: similar <number>")
+                    print("Example: similar 3")
+            else:
+                print("Usage: similar <number>")
+                print("Example: similar 3")
+                print("\nThis finds articles similar to the specified article.")
+
+        elif command == 'related':
+            self.show_related()
+
+        elif command == 'compare':
+            self.show_comparison()
 
         else:
             # If command not recognized, treat as a question
