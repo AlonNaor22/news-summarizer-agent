@@ -14,6 +14,7 @@ Or from the backend directory:
 import sys
 import os
 import io
+from dotenv import load_dotenv
 
 # Fix Windows console encoding for unicode characters
 if sys.platform == 'win32':
@@ -29,6 +30,9 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
+
+# Load .env from project root before any module that reads env vars
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
