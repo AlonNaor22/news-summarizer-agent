@@ -39,3 +39,6 @@ frontend/dist/
 .claude/
 nul
 *.log
+
+# Claude Code temporary files
+tmpclaude-*
