@@ -46,7 +46,7 @@ An AI-powered news aggregator that fetches the latest news articles from multipl
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/news-summarizer-agent.git
+   git clone https://github.com/AlonNaor22/news-summarizer-agent.git
    cd news-summarizer-agent
    ```
 
