@@ -1,3 +1,5 @@
+[![CI](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml)
+
 # News Summarizer Agent
 
 An AI-powered news aggregator that fetches the latest news articles from multiple sources, summarizes them using Claude AI, categorizes them by topic, analyzes sentiment, detects trends, and allows you to ask follow-up questions about current events.
@@ -239,6 +241,13 @@ The FastAPI backend provides these endpoints:
 | `/api/qa/ask` | POST | Ask a question |
 
 Full API documentation available at http://localhost:8000/docs
+
+## Running Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
 
 ## Technologies Used
 
