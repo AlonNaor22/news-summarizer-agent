@@ -83,6 +83,8 @@ An AI-powered news aggregator that fetches the latest news articles from multipl
    ```bash
    cd frontend
    npm install
+   # (Optional) copy and edit the env file if the backend runs on a non-default URL
+   cp .env.example .env   # then set VITE_API_URL if needed
    cd ..
    ```
 
