@@ -47,14 +47,49 @@
 #
 # =====================================================
 
-from typing import Any, Union
+from typing import Any, Literal, Union
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
 from src.models import Article
+
+
+class RelatedPair(BaseModel):
+    """A single pair of related articles identified by the LLM."""
+
+    article_a: int = Field(
+        description="1-based index of the first article in the pair",
+        ge=1,
+    )
+    article_b: int = Field(
+        description="1-based index of the second article in the pair",
+        ge=1,
+    )
+    relationship: Literal[
+        "same_event",
+        "same_topic",
+        "same_entities",
+        "ongoing_story",
+        "cause_effect",
+    ] = Field(description="Type of relationship between the two articles")
+    strength: Literal["high", "medium", "low"] = Field(
+        description="How strong the relationship is",
+    )
+    explanation: str = Field(
+        description="One-sentence explanation of why the two articles are related",
+    )
+
+
+class RelatedPairList(BaseModel):
+    """Wrapper for a list of related-article pairs."""
+
+    pairs: list[RelatedPair] = Field(
+        default_factory=list,
+        description="All related-article pairs found in the input",
+    )
 
 
 # Helpers so similarity functions can accept either Article instances or
@@ -302,37 +337,18 @@ SIMILARITY_PROMPT = ChatPromptTemplate.from_messages([
 Your job is to identify which articles are related and explain WHY.
 
 Two articles are RELATED if they:
-1. Cover the same event from different angles
-2. Discuss the same topic or theme
-3. Mention the same people, companies, or places
-4. Are part of the same ongoing story
-5. Have cause-and-effect relationship
+1. Cover the same event from different angles -> same_event
+2. Discuss the same topic or theme -> same_topic
+3. Mention the same people, companies, or places -> same_entities
+4. Are part of the same ongoing story -> ongoing_story
+5. Have cause-and-effect relationship -> cause_effect
 
-You MUST respond in this EXACT format for each related pair:
-
-PAIR: <article_number_1> - <article_number_2>
-RELATIONSHIP: <type: same_event | same_topic | same_entities | ongoing_story | cause_effect>
-STRENGTH: <high | medium | low>
-EXPLANATION: <one sentence explaining the connection>
-
-If articles are NOT related, don't include them in any pair.
-
-Example response:
-PAIR: 1 - 3
-RELATIONSHIP: same_topic
-STRENGTH: high
-EXPLANATION: Both articles discuss artificial intelligence developments in tech industry.
-
-PAIR: 2 - 4
-RELATIONSHIP: cause_effect
-STRENGTH: medium
-EXPLANATION: Article 2's policy announcement led to the market reaction in Article 4."""),
+Use the 1-based article numbers shown in the input. If articles are NOT related,
+don't include them in any pair. Provide one short sentence explaining each connection."""),
 
     ("human", """Analyze the relationships between these {article_count} articles:
 
-{articles_text}
-
-Find all related pairs:""")
+{articles_text}""")
 ])
 
 
@@ -362,10 +378,15 @@ _chain = None
 
 
 def create_similarity_chain():
-    """Return the (lazily-built) similarity-analysis chain."""
+    """Return the (lazily-built) similarity-analysis chain.
+
+    Uses LangChain's structured-output binding so Claude returns a validated
+    :class:`RelatedPairList` instead of free-form text.
+    """
     global _chain
     if _chain is None:
-        _chain = SIMILARITY_PROMPT | create_similarity_llm() | StrOutputParser()
+        llm = create_similarity_llm().with_structured_output(RelatedPairList)
+        _chain = SIMILARITY_PROMPT | llm
     return _chain
 
 
@@ -387,89 +408,32 @@ Organizations: {', '.join(article.organizations) or 'None'}
     return "\n---\n".join(formatted)
 
 
-def parse_similarity_response(response: str, articles: list[Article]) -> list[dict]:
+def _pair_list_to_dicts(pair_list: RelatedPairList, articles: list[Article]) -> list[dict]:
+    """Convert a :class:`RelatedPairList` to the legacy dict shape callers expect.
+
+    The LLM produces 1-based article indices; we translate to 0-based and
+    drop any pair whose indices fall outside the input list.
     """
-    Parse Claude's similarity analysis into structured data.
+    out: list[dict] = []
+    n = len(articles)
 
-    INPUT (from Claude):
-    --------------------
-    "PAIR: 1 - 3
-     RELATIONSHIP: same_topic
-     STRENGTH: high
-     EXPLANATION: Both discuss AI..."
-
-    OUTPUT (Python list):
-    ---------------------
-    [
-        {
-            "article_a_index": 0,
-            "article_a_title": "...",
-            "article_b_index": 2,
-            "article_b_title": "...",
-            "relationship": "same_topic",
-            "strength": "high",
-            "explanation": "Both discuss AI..."
-        }
-    ]
-    """
-
-    pairs = []
-    current_pair = None
-
-    lines = response.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
-        if not line:
+    for pair in pair_list.pairs:
+        idx_a = pair.article_a - 1
+        idx_b = pair.article_b - 1
+        if not (0 <= idx_a < n and 0 <= idx_b < n):
             continue
 
-        # New pair starts
-        if line.upper().startswith("PAIR:"):
-            # Save previous pair
-            if current_pair:
-                pairs.append(current_pair)
+        out.append({
+            "article_a_index": idx_a,
+            "article_a_title": articles[idx_a].title or "Unknown",
+            "article_b_index": idx_b,
+            "article_b_title": articles[idx_b].title or "Unknown",
+            "relationship": pair.relationship,
+            "strength": pair.strength,
+            "explanation": pair.explanation,
+        })
 
-            # Parse "PAIR: 1 - 3" format
-            try:
-                pair_str = line.split(":", 1)[1].strip()
-                # Handle various formats: "1 - 3", "1-3", "1 and 3"
-                pair_str = pair_str.replace(" and ", "-").replace(" ", "")
-                parts = pair_str.split("-")
-
-                if len(parts) >= 2:
-                    idx_a = int(parts[0]) - 1  # Convert to 0-indexed
-                    idx_b = int(parts[1]) - 1
-
-                    current_pair = {
-                        "article_a_index": idx_a,
-                        "article_a_title": articles[idx_a].title if 0 <= idx_a < len(articles) else "Unknown",
-                        "article_b_index": idx_b,
-                        "article_b_title": articles[idx_b].title if 0 <= idx_b < len(articles) else "Unknown",
-                        "relationship": "related",
-                        "strength": "medium",
-                        "explanation": "",
-                    }
-            except (ValueError, IndexError):
-                current_pair = None
-
-        # Parse pair properties
-        elif current_pair:
-            if line.upper().startswith("RELATIONSHIP:"):
-                current_pair["relationship"] = line.split(":", 1)[1].strip().lower()
-
-            elif line.upper().startswith("STRENGTH:"):
-                strength = line.split(":", 1)[1].strip().lower()
-                if strength in ["high", "medium", "low"]:
-                    current_pair["strength"] = strength
-
-            elif line.upper().startswith("EXPLANATION:"):
-                current_pair["explanation"] = line.split(":", 1)[1].strip()
-
-    # Don't forget last pair
-    if current_pair:
-        pairs.append(current_pair)
-
-    return pairs
+    return out
 
 
 def find_related_articles_llm(articles: list[Article]) -> list[dict]:
@@ -512,14 +476,13 @@ def find_related_articles_llm(articles: list[Article]) -> list[dict]:
     # Format articles
     articles_text = format_articles_for_similarity(articles)
 
-    # Call Claude
-    response = chain.invoke({
+    # Call Claude — returns a validated RelatedPairList
+    pair_list: RelatedPairList = chain.invoke({
         "article_count": len(articles),
         "articles_text": articles_text
     })
 
-    # Parse response
-    pairs = parse_similarity_response(response, articles)
+    pairs = _pair_list_to_dicts(pair_list, articles)
 
     print(f"   Found {len(pairs)} related pairs")
 

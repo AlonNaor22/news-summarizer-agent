@@ -26,33 +26,31 @@
 #
 # =====================================================
 
+from typing import Literal
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
 
 
-# =====================================================
-# SENTIMENT VALUES
-# =====================================================
-#
-# We define the possible sentiment values as a list.
-# This makes it easy to validate Claude's response.
-#
-# In more advanced setups, you might use Python's Enum:
-#   from enum import Enum
-#   class Sentiment(Enum):
-#       POSITIVE = "positive"
-#       NEGATIVE = "negative"
-#       NEUTRAL = "neutral"
-#
-# But for simplicity, we use a list here.
-#
-# =====================================================
-
 VALID_SENTIMENTS = ["positive", "negative", "neutral"]
+
+
+class SentimentResult(BaseModel):
+    """Structured sentiment-analysis output from Claude."""
+
+    sentiment: Literal["positive", "negative", "neutral"] = Field(
+        description="Overall sentiment of the article"
+    )
+    confidence: Literal["high", "medium", "low"] = Field(
+        description="How confident the classifier is in the sentiment label"
+    )
+    reason: str = Field(
+        description="One-sentence explanation for the chosen sentiment"
+    )
 
 
 # =====================================================
@@ -88,31 +86,25 @@ negative events. Focus on WHAT is being reported, not HOW it's written.
 
 Examples:
 ---------
-"Company reports record profits and plans expansion" → positive
-"Earthquake devastates coastal city, thousands displaced" → negative
-"Government announces new policy on immigration" → neutral
-"Scientists discover breakthrough treatment for cancer" → positive
-"Stock market plunges amid economic concerns" → negative
-"Annual report shows mixed results for tech sector" → neutral
-
-You MUST respond with EXACTLY this format:
-SENTIMENT: <positive/negative/neutral>
-CONFIDENCE: <high/medium/low>
-REASON: <one sentence explaining why>
+"Company reports record profits and plans expansion" -> positive
+"Earthquake devastates coastal city, thousands displaced" -> negative
+"Government announces new policy on immigration" -> neutral
+"Scientists discover breakthrough treatment for cancer" -> positive
+"Stock market plunges amid economic concerns" -> negative
+"Annual report shows mixed results for tech sector" -> neutral
 
 Rules:
 1. Choose ONE sentiment only
 2. Be consistent - similar articles should get similar ratings
 3. When in doubt between positive/negative and neutral, lean toward neutral
-4. Consider the IMPACT of the news, not just the language used"""),
+4. Consider the IMPACT of the news, not just the language used
+5. Provide a one-sentence reason for your choice"""),
 
     ("human", """Analyze the sentiment of this news article:
 
 TITLE: {title}
 
-CONTENT: {content}
-
-Sentiment analysis:""")
+CONTENT: {content}""")
 ])
 
 
@@ -153,95 +145,16 @@ _chain = None
 
 
 def create_sentiment_chain():
-    """Return the (lazily-built) sentiment-analysis chain."""
+    """Return the (lazily-built) sentiment-analysis chain.
+
+    Uses LangChain's structured-output binding so Claude returns a validated
+    :class:`SentimentResult` instance instead of free-form text.
+    """
     global _chain
     if _chain is None:
-        _chain = SENTIMENT_PROMPT | create_llm() | StrOutputParser()
+        llm = create_llm().with_structured_output(SentimentResult)
+        _chain = SENTIMENT_PROMPT | llm
     return _chain
-
-
-# =====================================================
-# PARSING THE RESPONSE
-# =====================================================
-#
-# Claude returns text like:
-#   "SENTIMENT: negative
-#    CONFIDENCE: high
-#    REASON: The article describes a disaster with casualties."
-#
-# We need to convert this to a Python dictionary:
-#   {
-#       "sentiment": "negative",
-#       "confidence": "high",
-#       "reason": "The article describes..."
-#   }
-#
-# This is called OUTPUT PARSING - a crucial skill when
-# working with LLMs because they return unstructured text.
-#
-# =====================================================
-
-def parse_sentiment_response(response: str) -> dict:
-    """
-    Parse Claude's sentiment response into structured data.
-
-    PARAMETERS:
-    -----------
-    response : str
-        Raw text from Claude in format:
-        "SENTIMENT: positive
-         CONFIDENCE: high
-         REASON: ..."
-
-    RETURNS:
-    --------
-    dict with keys:
-        - sentiment: "positive", "negative", or "neutral"
-        - confidence: "high", "medium", or "low"
-        - reason: explanation string
-
-    EDGE CASES HANDLED:
-    -------------------
-    1. Extra whitespace
-    2. Different capitalizations
-    3. Missing fields (defaults provided)
-    4. Invalid sentiment values (defaults to "neutral")
-    """
-
-    result = {
-        "sentiment": "neutral",    # Default if parsing fails
-        "confidence": "medium",
-        "reason": "Unable to determine sentiment"
-    }
-
-    # Split response into lines and process each
-    lines = response.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
-
-        # Parse SENTIMENT line
-        if line.upper().startswith("SENTIMENT:"):
-            value = line.split(":", 1)[1].strip().lower()
-            # Validate against allowed values
-            if value in VALID_SENTIMENTS:
-                result["sentiment"] = value
-            else:
-                # If Claude returns something unexpected, default to neutral
-                result["sentiment"] = "neutral"
-
-        # Parse CONFIDENCE line
-        elif line.upper().startswith("CONFIDENCE:"):
-            value = line.split(":", 1)[1].strip().lower()
-            if value in ["high", "medium", "low"]:
-                result["confidence"] = value
-
-        # Parse REASON line
-        elif line.upper().startswith("REASON:"):
-            value = line.split(":", 1)[1].strip()
-            result["reason"] = value
-
-    return result
 
 
 # =====================================================
@@ -264,24 +177,22 @@ def analyze_sentiment(article: Article) -> Article:
 
     print(f"  Analyzing sentiment: {title[:40]}...")
 
-    response = chain.invoke({
+    result: SentimentResult = chain.invoke({
         "title": title,
         "content": content,
     })
 
-    parsed = parse_sentiment_response(response)
-
-    article.sentiment = parsed["sentiment"]
-    article.sentiment_confidence = parsed["confidence"]
-    article.sentiment_reason = parsed["reason"]
+    article.sentiment = result.sentiment
+    article.sentiment_confidence = result.confidence
+    article.sentiment_reason = result.reason
 
     indicator = {
         "positive": "[+]",
         "negative": "[-]",
         "neutral": "[=]",
-    }.get(parsed["sentiment"], "[=]")
+    }.get(result.sentiment, "[=]")
 
-    print(f"    -> {indicator} {parsed['sentiment']} ({parsed['confidence']} confidence)")
+    print(f"    -> {indicator} {result.sentiment} ({result.confidence} confidence)")
 
     return article
 

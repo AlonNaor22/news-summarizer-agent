@@ -36,13 +36,44 @@
 #
 # =====================================================
 
+from typing import Literal
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field, field_validator
 from collections import Counter
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+
+
+class Trend(BaseModel):
+    """A single trend identified across multiple articles."""
+
+    name: str = Field(description="Short name for the trend")
+    strength: Literal["high", "medium", "low"] = Field(
+        description="high: 4+ articles, medium: 2-3 articles, low: 1 significant article"
+    )
+    description: str = Field(description="One-sentence explanation of the trend")
+    keywords: list[str] = Field(
+        default_factory=list,
+        description="Keywords associated with this trend (lowercase)",
+    )
+    article_count: int = Field(
+        default=0,
+        description="Number of articles related to this trend",
+    )
+
+    @field_validator("keywords", mode="after")
+    @classmethod
+    def _lowercase_keywords(cls, value: list[str]) -> list[str]:
+        return [kw.strip().lower() for kw in value if kw and kw.strip()]
+
+
+class TrendList(BaseModel):
+    """Wrapper so Claude returns a list of trends as a structured object."""
+
+    trends: list[Trend] = Field(description="3-5 major trends across the articles")
 
 
 # =====================================================
@@ -154,32 +185,20 @@ Your job is to analyze multiple news articles and identify:
 2. EMERGING THEMES - Connections between seemingly different stories
 3. KEY NARRATIVES - The bigger stories behind individual articles
 
-You MUST respond in this EXACT format:
-
-TREND 1: <trend name>
-STRENGTH: <high/medium/low>
-DESCRIPTION: <one sentence explaining the trend>
-RELATED KEYWORDS: <keyword1, keyword2, keyword3>
-ARTICLE COUNT: <number of articles related to this trend>
-
-TREND 2: <trend name>
-...
-
 Rules:
 1. Identify 3-5 major trends
 2. Group related stories together (e.g., different AI articles = one AI trend)
-3. STRENGTH is based on how many articles relate to it:
+3. Strength is based on how many articles relate to the trend:
    - high: 4+ articles
    - medium: 2-3 articles
    - low: 1 article but significant topic
 4. Look for non-obvious connections between stories
-5. Consider both explicit topics and implicit themes"""),
+5. Consider both explicit topics and implicit themes
+6. Provide 3-5 lowercase keywords per trend"""),
 
     ("human", """Analyze these {article_count} news articles and identify the major trends:
 
-{articles_text}
-
-Identify the trends:""")
+{articles_text}""")
 ])
 
 
@@ -213,10 +232,15 @@ _chain = None
 
 
 def create_trend_chain():
-    """Return the (lazily-built) trend-analysis chain."""
+    """Return the (lazily-built) trend-analysis chain.
+
+    Uses LangChain's structured-output binding so Claude returns a validated
+    :class:`TrendList` instance instead of free-form text.
+    """
     global _chain
     if _chain is None:
-        _chain = TREND_ANALYSIS_PROMPT | create_trend_llm() | StrOutputParser()
+        llm = create_trend_llm().with_structured_output(TrendList)
+        _chain = TREND_ANALYSIS_PROMPT | llm
     return _chain
 
 
@@ -240,106 +264,6 @@ KEYWORDS: {', '.join(keywords) if keywords else 'None'}
         formatted_parts.append(article_text)
 
     return "\n".join(formatted_parts)
-
-
-def parse_trend_response(response: str) -> list[dict]:
-    """
-    Parse Claude's trend analysis into structured data.
-
-    INPUT (from Claude):
-    --------------------
-    "TREND 1: AI Industry Growth
-     STRENGTH: high
-     DESCRIPTION: Multiple articles discuss AI advancements...
-     RELATED KEYWORDS: artificial intelligence, machine learning
-     ARTICLE COUNT: 5
-
-     TREND 2: Economic Concerns
-     ..."
-
-    OUTPUT (Python list):
-    ---------------------
-    [
-        {
-            "name": "AI Industry Growth",
-            "strength": "high",
-            "description": "Multiple articles discuss...",
-            "keywords": ["artificial intelligence", "machine learning"],
-            "article_count": 5
-        },
-        ...
-    ]
-    """
-
-    trends = []
-    current_trend = None
-
-    lines = response.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
-
-        # Skip empty lines
-        if not line:
-            continue
-
-        # Start of new trend
-        if line.upper().startswith("TREND"):
-            # Save previous trend if exists
-            if current_trend:
-                trends.append(current_trend)
-
-            # Parse trend name: "TREND 1: AI Growth" → "AI Growth"
-            if ":" in line:
-                # Handle "TREND 1: Name" format
-                parts = line.split(":", 1)
-                if len(parts) > 1:
-                    name = parts[1].strip()
-                else:
-                    name = "Unknown Trend"
-            else:
-                name = "Unknown Trend"
-
-            current_trend = {
-                "name": name,
-                "strength": "medium",
-                "description": "",
-                "keywords": [],
-                "article_count": 0
-            }
-
-        # Parse trend properties
-        elif current_trend:
-            if line.upper().startswith("STRENGTH:"):
-                value = line.split(":", 1)[1].strip().lower()
-                if value in ["high", "medium", "low"]:
-                    current_trend["strength"] = value
-
-            elif line.upper().startswith("DESCRIPTION:"):
-                current_trend["description"] = line.split(":", 1)[1].strip()
-
-            elif line.upper().startswith("RELATED KEYWORDS:"):
-                keywords_str = line.split(":", 1)[1].strip()
-                current_trend["keywords"] = [
-                    kw.strip().lower()
-                    for kw in keywords_str.split(",")
-                    if kw.strip()
-                ]
-
-            elif line.upper().startswith("ARTICLE COUNT:"):
-                try:
-                    count_str = line.split(":", 1)[1].strip()
-                    # Handle "5" or "5 articles" format
-                    count = int(count_str.split()[0])
-                    current_trend["article_count"] = count
-                except (ValueError, IndexError):
-                    current_trend["article_count"] = 0
-
-    # Don't forget the last trend!
-    if current_trend:
-        trends.append(current_trend)
-
-    return trends
 
 
 # =====================================================
@@ -409,14 +333,14 @@ def detect_trends(articles: list[Article], use_llm: bool = True) -> dict:
             # Format all articles for Claude
             articles_text = format_articles_for_trend_analysis(articles)
 
-            # Call the chain
-            response = chain.invoke({
+            # Call the chain — returns a validated TrendList
+            trend_list: TrendList = chain.invoke({
                 "article_count": len(articles),
                 "articles_text": articles_text
             })
 
-            # Parse the response
-            result["llm_trends"] = parse_trend_response(response)
+            # Convert to the legacy dict shape that display_trends / callers expect
+            result["llm_trends"] = [trend.model_dump() for trend in trend_list.trends]
 
             print(f"   Identified {len(result['llm_trends'])} major trends")
 

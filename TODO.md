@@ -17,34 +17,7 @@
 - [x] 🔴 ~~Replace the `list[dict]` article representation with a Pydantic `Article` model~~ — defined once in [src/models.py](src/models.py) (required `title`/`source`/`url` + optional `description`/`summary`/`published`/`category`/`secondary_categories`/`sentiment{,_confidence,_reason}`/`keywords`/`people`/`organizations`/`locations`/`author`/`image_url`/`id`/`similarity`). [news_fetcher.py](src/news_fetcher.py) now returns `list[Article]`, every downstream `src/` module (summarizer, categorizer, tagger, sentiment, trending, similarity, comparator, qa_chain) and all six `backend/api/routes/*.py` files accept and return `Article` instances with FastAPI handling JSON serialization. [cli/state.py](cli/state.py) + [cli/commands.py](cli/commands.py) updated to attribute access; [tests/test_categorizer.py](tests/test_categorizer.py) and [tests/test_similarity.py](tests/test_similarity.py) now construct `Article` objects. All 40 tests pass.
 
 - [x] 🟡 ~~[main.py:1559](main.py:1559) — bare-ish `except Exception as e` in the main loop~~ — now catches `KeyboardInterrupt`, `EOFError`, and `(ValueError, KeyError, IndexError)` explicitly so unexpected exceptions propagate with a real traceback.
-- [ ] 🟡 Replace manual LLM output parsing in [src/sentiment.py:201](src/sentiment.py:201), [src/tagger.py:121](src/tagger.py:121), [src/categorizer.py:283](src/categorizer.py:283), [src/trending.py:325](src/trending.py:325), [src/similarity.py:517](src/similarity.py:517), [src/comparator.py:338](src/comparator.py:338) with structured outputs (LangChain `with_structured_output()` or Anthropic tool-use). The current `line.split(":")` parsing is fragile and breaks silently when Claude varies its format. **This is a major portfolio talking point** — junior candidates almost never know this.
-
-```
-Prompt for a new chat (model: Opus)
------------------------------------
-Replace manual LLM output parsing with LangChain structured
-outputs. Six modules currently parse Claude's plain-text response
-with line.split(":") — fragile when Claude varies its format.
-
-Files to update:
-- src/sentiment.py:201 (parse_sentiment_response)
-- src/tagger.py:121 (parse_tagging_response)
-- src/categorizer.py:283 (parse_multi_category_response)
-- src/trending.py:325 (parse_trend_response)
-- src/similarity.py:517 (parse_similarity_response)
-- src/comparator.py:338 (parse_comparison_response)
-
-Approach: define Pydantic models for each module's expected output,
-then use `llm.with_structured_output(MyModel)` from
-langchain-anthropic. Delete the manual parsers. Keep the existing
-function signatures so callers don't change.
-
-Constraints: all 40 existing tests must still pass. The tests in
-tests/test_categorizer.py and tests/test_tagger.py test the OLD
-parse_*_response functions — either keep those functions as
-adapters that wrap the new structured output, or rewrite the
-tests to mock the LLM and assert the Pydantic model.
-```
+- [x] 🟡 ~~Replace manual LLM output parsing in `src/sentiment.py`, `src/tagger.py`, `src/categorizer.py`, `src/trending.py`, `src/similarity.py`, `src/comparator.py`~~ — every chain now uses LangChain's `llm.with_structured_output(Model)` against a Pydantic model defined in the same module: [SentimentResult](src/sentiment.py), [ArticleTags](src/tagger.py), [MultiCategoryResult](src/categorizer.py), [Trend](src/trending.py)/[TrendList](src/trending.py), [RelatedPair](src/similarity.py)/[RelatedPairList](src/similarity.py), [SourceAnalysis](src/comparator.py)/[ComparisonResult](src/comparator.py). All six `parse_*_response` line-splitters are deleted; the legacy dict shape that downstream display/summary code expects is preserved by small `_pair_list_to_dicts` / `_comparison_to_dict` adapters where needed. `tests/test_tagger.py` and `tests/test_categorizer.py` now exercise the Pydantic models + a mocked structured chain instead of the old text parsers; all 40 tests still pass.
 
 - [x] 🟡 ~~Unused imports in [main.py:33](main.py:33)~~ — trimmed to just `fetch_news`.
 - [x] 🟡 ~~Magic numbers scattered across the codebase~~ — added `SIMILARITY_THRESHOLDS` and `WORDS_PER_MINUTE` to [config.py](config.py); removed the hardcoded `max_per_source=3` override in `main.py` so it now uses `MAX_ARTICLES_PER_SOURCE` from config.

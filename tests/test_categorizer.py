@@ -1,4 +1,11 @@
-from src.categorizer import clean_category, parse_multi_category_response, group_by_category
+from unittest.mock import MagicMock, patch
+
+from src.categorizer import (
+    MultiCategoryResult,
+    categorize_article_multi,
+    clean_category,
+    group_by_category,
+)
 from src.models import Article
 
 
@@ -45,22 +52,35 @@ class TestCleanCategory:
         assert clean_category("xyzzy quux frobnicate random words") == "Other"
 
 
-class TestParseMultiCategoryResponse:
-    def test_parses_primary_and_secondary(self):
-        response = "PRIMARY: Technology\nSECONDARY: Business"
-        result = parse_multi_category_response(response)
-        assert result["primary"] == "Technology"
-        assert "Business" in result["secondary"]
+class TestMultiCategoryResultModel:
+    def test_validator_canonicalizes_primary(self):
+        # Pydantic validator runs clean_category, so lowercase input is normalized.
+        result = MultiCategoryResult(primary="technology", secondary=["business"])
+        assert result.primary == "Technology"
+        assert result.secondary == ["Business"]
 
-    def test_secondary_none_yields_empty_list(self):
-        response = "PRIMARY: Politics\nSECONDARY: None"
-        result = parse_multi_category_response(response)
-        assert result["secondary"] == []
+    def test_unknown_categories_dropped_from_secondary(self):
+        # "Quux" isn't a known category -> would map to "Other" -> excluded from secondary.
+        result = MultiCategoryResult(primary="Health", secondary=["Science", "Quux"])
+        assert result.primary == "Health"
+        assert result.secondary == ["Science"]
 
-    def test_empty_input_returns_defaults(self):
-        result = parse_multi_category_response("")
-        assert result["primary"] == "Other"
-        assert result["secondary"] == []
+
+class TestCategorizeArticleMultiStructuredOutput:
+    def test_writes_primary_and_secondary_back_to_article(self):
+        article = _make_article(title="Apple AI launch", summary="Apple launched a new AI iPhone." )
+
+        mock_chain = MagicMock()
+        mock_chain.invoke.return_value = MultiCategoryResult(
+            primary="Technology",
+            secondary=["Business"],
+        )
+
+        with patch("src.categorizer.create_multi_categorize_chain", return_value=mock_chain):
+            result = categorize_article_multi(article)
+
+        assert result.category == "Technology"
+        assert result.secondary_categories == ["Business"]
 
 
 class TestGroupByCategory:

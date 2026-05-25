@@ -15,9 +15,39 @@
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field, field_validator
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
 from src.models import Article
+
+
+class MultiCategoryResult(BaseModel):
+    """Structured multi-category classification output."""
+
+    primary: str = Field(
+        description="The single most relevant category from the allowed list",
+    )
+    secondary: list[str] = Field(
+        default_factory=list,
+        description="Other relevant categories (may be empty)",
+    )
+
+    @field_validator("primary", mode="after")
+    @classmethod
+    def _normalize_primary(cls, value: str) -> str:
+        return clean_category(value)
+
+    @field_validator("secondary", mode="after")
+    @classmethod
+    def _normalize_secondary(cls, value: list[str]) -> list[str]:
+        cleaned = []
+        for item in value:
+            if not item:
+                continue
+            canonical = clean_category(item)
+            if canonical != "Other":
+                cleaned.append(canonical)
+        return cleaned
 
 
 # =====================================================
@@ -65,30 +95,15 @@ Available categories:
 {categories}
 
 Rules:
-1. PRIMARY = The main focus of the article (required)
-2. SECONDARY = Other relevant topics (optional, can be "None")
-3. Use this EXACT format:
-   PRIMARY: <category>
-   SECONDARY: <category1>, <category2> or None
-
-Example responses:
----
-PRIMARY: Technology
-SECONDARY: Business
----
-PRIMARY: Politics
-SECONDARY: None
----
-PRIMARY: Health
-SECONDARY: Science, Business"""),
+1. PRIMARY = The main focus of the article (required, exactly one category from the list above)
+2. SECONDARY = Other relevant topics (zero or more categories; return an empty list if none apply)
+3. Pick category names exactly as written in the list"""),
 
     ("human", """Categorize this article:
 
 TITLE: {title}
 
-SUMMARY: {summary}
-
-Categories:""")
+SUMMARY: {summary}""")
 ])
 
 
@@ -226,7 +241,11 @@ def categorize_articles(articles: list[Article]) -> list[Article]:
 # =====================================================
 
 def create_multi_categorize_chain():
-    """Return the (lazily-built) multi-category chain."""
+    """Return the (lazily-built) multi-category chain.
+
+    Uses LangChain's structured-output binding so Claude returns a validated
+    :class:`MultiCategoryResult` instance instead of free-form text.
+    """
     global _multi_chain
     if _multi_chain is None:
         settings = LLM_SETTINGS["categorize_multi"]
@@ -236,64 +255,8 @@ def create_multi_categorize_chain():
             max_tokens=settings["max_tokens"],
             api_key=ANTHROPIC_API_KEY,
         )
-        _multi_chain = MULTI_CATEGORIZE_PROMPT | llm | StrOutputParser()
+        _multi_chain = MULTI_CATEGORIZE_PROMPT | llm.with_structured_output(MultiCategoryResult)
     return _multi_chain
-
-
-def parse_multi_category_response(response: str) -> dict:
-    """
-    Parse Claude's multi-category response.
-
-    INPUT FORMAT (from Claude):
-        "PRIMARY: Technology
-         SECONDARY: Business, Science"
-
-    OUTPUT FORMAT (Python dict):
-        {
-            "primary": "Technology",
-            "secondary": ["Business", "Science"]
-        }
-
-    This function handles various edge cases in Claude's response.
-    """
-    result = {
-        "primary": "Other",
-        "secondary": []
-    }
-
-    lines = response.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
-
-        # Parse PRIMARY category
-        if line.upper().startswith("PRIMARY"):
-            # "PRIMARY: Technology" → "Technology"
-            parts = line.split(":", 1)
-            if len(parts) > 1:
-                primary = parts[1].strip()
-                # Clean and validate
-                result["primary"] = clean_category(primary)
-
-        # Parse SECONDARY categories
-        elif line.upper().startswith("SECONDARY"):
-            parts = line.split(":", 1)
-            if len(parts) > 1:
-                secondary_str = parts[1].strip()
-
-                # Handle "None" case
-                if secondary_str.lower() == "none":
-                    result["secondary"] = []
-                else:
-                    # "Business, Science" → ["Business", "Science"]
-                    secondary_list = [s.strip() for s in secondary_str.split(",")]
-                    # Clean each category
-                    result["secondary"] = [
-                        clean_category(s) for s in secondary_list
-                        if clean_category(s) != "Other"  # Don't include "Other" in secondary
-                    ]
-
-    return result
 
 
 def categorize_article_multi(article: Article) -> Article:
@@ -312,19 +275,17 @@ def categorize_article_multi(article: Article) -> Article:
 
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
-    raw_response = chain.invoke({
+    parsed: MultiCategoryResult = chain.invoke({
         "categories": categories_str,
         "title": title,
         "summary": summary,
     })
 
-    parsed = parse_multi_category_response(raw_response)
+    article.category = parsed.primary
+    article.secondary_categories = parsed.secondary
 
-    article.category = parsed["primary"]
-    article.secondary_categories = parsed["secondary"]
-
-    secondary_str = ", ".join(parsed["secondary"]) if parsed["secondary"] else "None"
-    print(f"    -> Primary: {parsed['primary']}")
+    secondary_str = ", ".join(parsed.secondary) if parsed.secondary else "None"
+    print(f"    -> Primary: {parsed.primary}")
     print(f"    -> Secondary: {secondary_str}")
 
     return article

@@ -38,13 +38,57 @@
 #
 # =====================================================
 
+from typing import Literal
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
 from src.models import Article
 from src.similarity import calculate_combined_similarity
+
+
+class SourceAnalysis(BaseModel):
+    """Per-source breakdown of a multi-source comparison."""
+
+    source: str = Field(description="Name of the news source")
+    tone: Literal["positive", "negative", "neutral"] = Field(
+        description="Emotional tone of this source's coverage",
+    )
+    emphasis: str = Field(description="What this source focuses on")
+    unique_details: str = Field(
+        default="None",
+        description="Facts only this source mentions, or 'None'",
+    )
+    potential_bias: str = Field(
+        default="None detected",
+        description="Apparent bias or slant, or 'None detected'",
+    )
+
+
+class ComparisonResult(BaseModel):
+    """Structured multi-source comparison output from Claude."""
+
+    story_summary: str = Field(
+        description="Neutral 2-3 sentence summary of what happened",
+    )
+    common_facts: list[str] = Field(
+        default_factory=list,
+        description="Facts that every source agrees on",
+    )
+    source_analyses: list[SourceAnalysis] = Field(
+        default_factory=list,
+        description="Per-source tone/emphasis/unique-details/bias breakdown",
+    )
+    key_differences: list[str] = Field(
+        default_factory=list,
+        description="Major differences between the sources",
+    )
+    overall_assessment: str = Field(
+        default="",
+        description="1-2 sentences on coverage quality and diversity of perspectives",
+    )
 
 
 # =====================================================
@@ -158,35 +202,8 @@ Your job is to analyze multiple articles about the SAME event and identify:
 4. TONE ANALYSIS - The emotional tone of each source
 5. POTENTIAL BIAS - Any apparent bias or slant
 
-You MUST respond in this EXACT format:
-
-STORY SUMMARY:
-<2-3 sentence neutral summary of what happened>
-
-COMMON FACTS:
-- <fact that all sources mention>
-- <another common fact>
-
-SOURCE ANALYSIS:
-
-SOURCE: <source name 1>
-TONE: <positive/negative/neutral>
-EMPHASIS: <what this source focuses on>
-UNIQUE DETAILS: <facts only this source mentions, or "None">
-POTENTIAL BIAS: <any apparent bias, or "None detected">
-
-SOURCE: <source name 2>
-TONE: <positive/negative/neutral>
-EMPHASIS: <what this source focuses on>
-UNIQUE DETAILS: <facts only this source mentions, or "None">
-POTENTIAL BIAS: <any apparent bias, or "None detected">
-
-KEY DIFFERENCES:
-- <major difference 1>
-- <major difference 2>
-
-OVERALL ASSESSMENT:
-<1-2 sentences about the coverage quality and diversity of perspectives>
+Provide one SourceAnalysis entry per source (using the source names shown in the input).
+Use "None" / "None detected" for unique_details / potential_bias when nothing notable.
 
 Rules:
 1. Be objective - don't favor any source
@@ -197,9 +214,7 @@ Rules:
 
     ("human", """Compare how these {source_count} sources cover the same story:
 
-{articles_text}
-
-Provide your analysis:""")
+{articles_text}""")
 ])
 
 
@@ -240,10 +255,15 @@ _chain = None
 
 
 def create_comparison_chain():
-    """Return the (lazily-built) source-comparison chain."""
+    """Return the (lazily-built) source-comparison chain.
+
+    Uses LangChain's structured-output binding so Claude returns a validated
+    :class:`ComparisonResult` instead of free-form text.
+    """
     global _chain
     if _chain is None:
-        _chain = COMPARISON_PROMPT | create_comparison_llm() | StrOutputParser()
+        llm = create_comparison_llm().with_structured_output(ComparisonResult)
+        _chain = COMPARISON_PROMPT | llm
     return _chain
 
 
@@ -269,113 +289,27 @@ KEYWORDS: {', '.join(keywords) if keywords else 'None'}
     return "\n".join(formatted)
 
 
-def parse_comparison_response(response: str, articles: list[Article]) -> dict:
+def _comparison_to_dict(result: ComparisonResult) -> dict:
+    """Translate a :class:`ComparisonResult` to the legacy dict shape callers expect.
+
+    ``source_analyses`` is a dict keyed by source name (the legacy contract used
+    by display_comparison / summarize_bias_findings).
     """
-    Parse Claude's comparison analysis into structured data.
-
-    This is complex parsing because the output has multiple sections
-    and nested information about each source.
-
-    RETURNS:
-    --------
-    dict with:
-        - story_summary: Neutral summary of the event
-        - common_facts: List of facts all sources agree on
-        - source_analyses: Dict mapping source → analysis
-        - key_differences: List of major differences
-        - overall_assessment: Final assessment text
-    """
-
-    result = {
-        "story_summary": "",
-        "common_facts": [],
-        "source_analyses": {},
-        "key_differences": [],
-        "overall_assessment": ""
-    }
-
-    # Track current parsing state
-    current_section = None
-    current_source = None
-
-    lines = response.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # Detect section headers
-        if line.upper().startswith("STORY SUMMARY:"):
-            current_section = "summary"
-            # Check if content is on same line
-            content = line.split(":", 1)
-            if len(content) > 1 and content[1].strip():
-                result["story_summary"] = content[1].strip()
-            continue
-
-        elif line.upper().startswith("COMMON FACTS:"):
-            current_section = "common_facts"
-            continue
-
-        elif line.upper().startswith("SOURCE ANALYSIS:"):
-            current_section = "source_analysis"
-            continue
-
-        elif line.upper().startswith("SOURCE:"):
-            current_section = "source_detail"
-            source_name = line.split(":", 1)[1].strip()
-            current_source = source_name
-            result["source_analyses"][source_name] = {
-                "tone": "",
-                "emphasis": "",
-                "unique_details": "",
-                "potential_bias": ""
+    return {
+        "story_summary": result.story_summary,
+        "common_facts": list(result.common_facts),
+        "source_analyses": {
+            entry.source: {
+                "tone": entry.tone,
+                "emphasis": entry.emphasis,
+                "unique_details": entry.unique_details,
+                "potential_bias": entry.potential_bias,
             }
-            continue
-
-        elif line.upper().startswith("KEY DIFFERENCES:"):
-            current_section = "differences"
-            current_source = None
-            continue
-
-        elif line.upper().startswith("OVERALL ASSESSMENT:"):
-            current_section = "assessment"
-            content = line.split(":", 1)
-            if len(content) > 1 and content[1].strip():
-                result["overall_assessment"] = content[1].strip()
-            continue
-
-        # Parse content based on current section
-        if current_section == "summary" and not result["story_summary"]:
-            result["story_summary"] = line
-
-        elif current_section == "common_facts":
-            if line.startswith("-") or line.startswith("•"):
-                fact = line.lstrip("-•").strip()
-                if fact:
-                    result["common_facts"].append(fact)
-
-        elif current_section == "source_detail" and current_source:
-            if line.upper().startswith("TONE:"):
-                result["source_analyses"][current_source]["tone"] = line.split(":", 1)[1].strip().lower()
-            elif line.upper().startswith("EMPHASIS:"):
-                result["source_analyses"][current_source]["emphasis"] = line.split(":", 1)[1].strip()
-            elif line.upper().startswith("UNIQUE DETAILS:"):
-                result["source_analyses"][current_source]["unique_details"] = line.split(":", 1)[1].strip()
-            elif line.upper().startswith("POTENTIAL BIAS:"):
-                result["source_analyses"][current_source]["potential_bias"] = line.split(":", 1)[1].strip()
-
-        elif current_section == "differences":
-            if line.startswith("-") or line.startswith("•"):
-                diff = line.lstrip("-•").strip()
-                if diff:
-                    result["key_differences"].append(diff)
-
-        elif current_section == "assessment" and not result["overall_assessment"]:
-            result["overall_assessment"] = line
-
-    return result
+            for entry in result.source_analyses
+        },
+        "key_differences": list(result.key_differences),
+        "overall_assessment": result.overall_assessment,
+    }
 
 
 # =====================================================
@@ -403,14 +337,13 @@ def compare_sources(articles: list[Article]) -> dict:
     # Format articles
     articles_text = format_articles_for_comparison(articles)
 
-    # Call Claude
-    response = chain.invoke({
+    # Call Claude — returns a validated ComparisonResult
+    structured: ComparisonResult = chain.invoke({
         "source_count": len(articles),
         "articles_text": articles_text
     })
 
-    # Parse response
-    result = parse_comparison_response(response, articles)
+    result = _comparison_to_dict(structured)
 
     # Add metadata
     result["sources"] = sources

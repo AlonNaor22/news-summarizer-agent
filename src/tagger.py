@@ -27,57 +27,59 @@
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field, field_validator
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
 
 
-# =====================================================
-# THE TAGGING PROMPT
-# =====================================================
-#
-# This prompt asks Claude to extract keywords and entities
-# in a SPECIFIC format that we can parse.
-#
-# Key technique: We give Claude an exact output format
-# and examples to follow. This is called "few-shot prompting".
-#
-# =====================================================
+class ArticleTags(BaseModel):
+    """Structured tagging output: keywords + named entities."""
+
+    keywords: list[str] = Field(
+        default_factory=list,
+        description="3-5 main topics or themes, lowercase",
+    )
+    people: list[str] = Field(
+        default_factory=list,
+        description="Named people mentioned in the article",
+    )
+    organizations: list[str] = Field(
+        default_factory=list,
+        description="Named organizations mentioned in the article",
+    )
+    locations: list[str] = Field(
+        default_factory=list,
+        description="Named locations mentioned in the article",
+    )
+
+    @field_validator("keywords", mode="after")
+    @classmethod
+    def _lowercase_keywords(cls, value: list[str]) -> list[str]:
+        return [kw.strip().lower() for kw in value if kw and kw.strip()]
+
 
 TAGGING_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are an expert at analyzing news articles and extracting key information.
 
 Your job is to extract:
-1. KEYWORDS: 3-5 main topics or themes (lowercase, comma-separated)
-2. ENTITIES: Named people, organizations, and locations mentioned
-
-You MUST respond in this EXACT format:
-KEYWORDS: keyword1, keyword2, keyword3
-PEOPLE: person1, person2 (or "None" if no people mentioned)
-ORGANIZATIONS: org1, org2 (or "None" if no organizations mentioned)
-LOCATIONS: location1, location2 (or "None" if no locations mentioned)
-
-Example response:
-KEYWORDS: artificial intelligence, technology, smartphones
-PEOPLE: Tim Cook, Elon Musk
-ORGANIZATIONS: Apple, Tesla, OpenAI
-LOCATIONS: California, Silicon Valley
+1. KEYWORDS: 3-5 main topics or themes (lowercase)
+2. PEOPLE: Named people mentioned
+3. ORGANIZATIONS: Named companies, agencies, or other organizations mentioned
+4. LOCATIONS: Named places mentioned
 
 Rules:
 - Keywords should be lowercase
 - Entity names should be properly capitalized
 - Don't include generic terms like "news" or "article" as keywords
 - Only include entities that are specifically named in the text
-- If a category has no items, write "None" """),
+- If a category has no items, return an empty list"""),
 
     ("human", """Extract keywords and entities from this article:
 
 TITLE: {title}
 
-CONTENT: {content}
-
-Extract the information:""")
+CONTENT: {content}""")
 ])
 
 
@@ -99,97 +101,16 @@ _chain = None
 
 
 def create_tagging_chain():
-    """Return the (lazily-built) tagging chain."""
+    """Return the (lazily-built) tagging chain.
+
+    Uses LangChain's structured-output binding so Claude returns a validated
+    :class:`ArticleTags` instance instead of free-form text.
+    """
     global _chain
     if _chain is None:
-        _chain = TAGGING_PROMPT | create_llm() | StrOutputParser()
+        llm = create_llm().with_structured_output(ArticleTags)
+        _chain = TAGGING_PROMPT | llm
     return _chain
-
-
-def parse_tagging_response(response: str) -> dict:
-    """
-    Parse Claude's response into a structured dictionary.
-
-    This function takes the raw text response from Claude
-    and converts it into a Python dictionary we can use.
-
-    INPUT (from Claude):
-    --------------------
-    "KEYWORDS: ai, technology, smartphones
-     PEOPLE: Tim Cook, Elon Musk
-     ORGANIZATIONS: Apple, Tesla
-     LOCATIONS: California"
-
-    OUTPUT (Python dict):
-    ---------------------
-    {
-        "keywords": ["ai", "technology", "smartphones"],
-        "people": ["Tim Cook", "Elon Musk"],
-        "organizations": ["Apple", "Tesla"],
-        "locations": ["California"]
-    }
-
-    WHY DO WE NEED THIS?
-    --------------------
-    Claude returns text, but we need structured data.
-    This function bridges that gap by parsing the text.
-    """
-
-    result = {
-        "keywords": [],
-        "people": [],
-        "organizations": [],
-        "locations": []
-    }
-
-    # Split response into lines
-    lines = response.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
-
-        # Parse KEYWORDS line
-        if line.upper().startswith("KEYWORDS:"):
-            value = line.split(":", 1)[1].strip()
-            if value.lower() != "none":
-                # Split by comma, clean each keyword
-                result["keywords"] = [
-                    kw.strip().lower()
-                    for kw in value.split(",")
-                    if kw.strip()
-                ]
-
-        # Parse PEOPLE line
-        elif line.upper().startswith("PEOPLE:"):
-            value = line.split(":", 1)[1].strip()
-            if value.lower() != "none":
-                result["people"] = [
-                    p.strip()
-                    for p in value.split(",")
-                    if p.strip()
-                ]
-
-        # Parse ORGANIZATIONS line
-        elif line.upper().startswith("ORGANIZATIONS:"):
-            value = line.split(":", 1)[1].strip()
-            if value.lower() != "none":
-                result["organizations"] = [
-                    o.strip()
-                    for o in value.split(",")
-                    if o.strip()
-                ]
-
-        # Parse LOCATIONS line
-        elif line.upper().startswith("LOCATIONS:"):
-            value = line.split(":", 1)[1].strip()
-            if value.lower() != "none":
-                result["locations"] = [
-                    loc.strip()
-                    for loc in value.split(",")
-                    if loc.strip()
-                ]
-
-    return result
 
 
 def tag_article(article: Article) -> Article:
@@ -209,22 +130,20 @@ def tag_article(article: Article) -> Article:
 
     print(f"  Tagging: {title[:40]}...")
 
-    response = chain.invoke({
+    tags: ArticleTags = chain.invoke({
         "title": title,
         "content": content,
     })
 
-    tags = parse_tagging_response(response)
+    article.keywords = tags.keywords
+    article.people = tags.people
+    article.organizations = tags.organizations
+    article.locations = tags.locations
 
-    article.keywords = tags["keywords"]
-    article.people = tags["people"]
-    article.organizations = tags["organizations"]
-    article.locations = tags["locations"]
-
-    if tags["keywords"]:
-        print(f"    Keywords: {', '.join(tags['keywords'][:3])}...")
-    if tags["people"]:
-        print(f"    People: {', '.join(tags['people'])}")
+    if tags.keywords:
+        print(f"    Keywords: {', '.join(tags.keywords[:3])}...")
+    if tags.people:
+        print(f"    People: {', '.join(tags.people)}")
 
     return article
 
