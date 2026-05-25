@@ -30,7 +30,7 @@ from dateutil import parser as date_parser
 # -------------------------------------------------
 # CORE MODULE IMPORTS
 # -------------------------------------------------
-from src.news_fetcher import fetch_all_news, fetch_from_rss, fetch_news
+from src.news_fetcher import fetch_news
 from src.summarizer import summarize_articles
 from src.categorizer import categorize_articles, group_by_category
 from src.qa_chain import NewsQAChain
@@ -49,7 +49,15 @@ from src.trending import detect_trends, display_trends
 from src.similarity import find_similar_articles, analyze_article_relationships, display_similar_articles, display_all_relationships
 from src.comparator import compare_all_stories, display_all_comparisons, find_same_story_articles
 
-from config import RSS_FEEDS, CATEGORIES, NEWSAPI_SOURCES, NEWSAPI_CATEGORIES, NEWS_API_KEY
+from config import (
+    RSS_FEEDS,
+    CATEGORIES,
+    NEWSAPI_SOURCES,
+    NEWSAPI_CATEGORIES,
+    NEWS_API_KEY,
+    WORDS_PER_MINUTE,
+    SIMILARITY_THRESHOLDS,
+)
 
 
 class NewsSummarizerAgent:
@@ -77,7 +85,7 @@ class NewsSummarizerAgent:
     >>> agent.run()  # Starts the interactive CLI
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the agent with empty state."""
         # -------------------------------------------------
         # CORE STATE
@@ -96,7 +104,7 @@ class NewsSummarizerAgent:
         self.relationships_cache = None    # Cached article relationships
         self.comparisons_cache = None      # Cached source comparisons
 
-    def display_welcome(self):
+    def display_welcome(self) -> None:
         """Show welcome message and available commands."""
         print("\n" + "="*60)
         print("       WELCOME TO THE NEWS SUMMARIZER AGENT")
@@ -113,7 +121,7 @@ Type 'fetch' to get started!
         """)
         print("="*60)
 
-    def display_help(self):
+    def display_help(self) -> None:
         """Show available commands."""
         print("\n" + "-"*60)
         print("AVAILABLE COMMANDS")
@@ -175,7 +183,7 @@ Type 'fetch' to get started!
 """)
         print("-"*60)
 
-    def fetch_news(self, source: str = "rss"):
+    def fetch_news(self, source: str = "rss") -> None:
         """
         Fetch, summarize, categorize, and analyze news.
 
@@ -212,7 +220,7 @@ Type 'fetch' to get started!
         }.get(source, "RSS feeds")
 
         print(f"\nStep 1/5: Fetching articles from {source_name}...")
-        raw_articles = fetch_news(source=source, max_per_source=3)
+        raw_articles = fetch_news(source=source)
 
         if not raw_articles:
             print("No articles found. Please check your internet connection.")
@@ -265,7 +273,7 @@ Type 'fetch' to get started!
         print("\nType 'show' to see articles, 'sentiment' for mood analysis,")
         print("or 'trending' to see what's hot!")
 
-    def show_articles(self, article_num=None):
+    def show_articles(self, article_num: int | None = None) -> None:
         """
         Display articles.
 
@@ -339,7 +347,7 @@ Type 'fetch' to get started!
         print("Tip: Type 'show <number>' to see full details")
         print("     Example: show 3")
 
-    def show_category(self, category_name=None):
+    def show_category(self, category_name: str | None = None) -> None:
         """
         Show articles filtered by category.
 
@@ -391,7 +399,7 @@ Type 'fetch' to get started!
             summary = article.get('summary', '')[:100]
             print(f"      {summary}...")
 
-    def ask_question(self, question: str):
+    def ask_question(self, question: str) -> None:
         """
         Ask a question about the articles.
 
@@ -413,7 +421,7 @@ Type 'fetch' to get started!
         print("\n" + "-"*60)
         print("Tip: You can ask follow-up questions - I remember the conversation!")
 
-    def show_sources(self):
+    def show_sources(self) -> None:
         """Display available news sources (RSS and NewsAPI)."""
         print("\n" + "="*60)
         print("AVAILABLE NEWS SOURCES")
@@ -447,7 +455,7 @@ Type 'fetch' to get started!
         print("Usage: fetch rss | fetch newsapi | fetch both")
         print("="*60)
 
-    def show_tags(self, article_num=None):
+    def show_tags(self, article_num: int | None = None) -> None:
         """
         Display tags (keywords and entities).
 
@@ -526,7 +534,7 @@ Type 'fetch' to get started!
         print("\n" + "-"*60)
         print("Tip: Use 'tags <number>' to see tags for a specific article")
 
-    def search_articles(self, query: str):
+    def search_articles(self, query: str) -> None:
         """
         Search articles by keyword.
 
@@ -626,7 +634,7 @@ Type 'fetch' to get started!
         print("-"*60)
         print("Tip: Use 'show <number>' to see full article details")
 
-    def save_articles(self, format_type: str = "json"):
+    def save_articles(self, format_type: str = "json") -> None:
         """
         Save articles to a file.
 
@@ -664,7 +672,7 @@ Type 'fetch' to get started!
             print(f"Unknown format: {format_type}")
             print("Valid options: json, md")
 
-    def _save_as_json(self, output_dir: str, timestamp: str):
+    def _save_as_json(self, output_dir: str, timestamp: str) -> None:
         """
         Save articles as JSON file.
 
@@ -704,7 +712,7 @@ Type 'fetch' to get started!
         print(f"  with open('{filename}') as f:")
         print(f"      data = json.load(f)")
 
-    def _save_as_markdown(self, output_dir: str, timestamp: str):
+    def _save_as_markdown(self, output_dir: str, timestamp: str) -> None:
         """
         Save articles as Markdown file.
 
@@ -847,10 +855,8 @@ Type 'fetch' to get started!
         # Character count (excluding spaces)
         char_count = len(text.replace(" ", ""))
 
-        # Reading time calculation
-        # Average reading speed: 200 words per minute
-        words_per_minute = 200
-        reading_time_minutes = word_count / words_per_minute
+        # Reading time calculation (uses WORDS_PER_MINUTE from config)
+        reading_time_minutes = word_count / WORDS_PER_MINUTE
         reading_time_seconds = int(reading_time_minutes * 60)
 
         # Format reading time for display
@@ -871,7 +877,7 @@ Type 'fetch' to get started!
             "reading_time_display": reading_time_display
         }
 
-    def show_stats(self, article_num=None):
+    def show_stats(self, article_num: int | None = None) -> None:
         """
         Display article statistics.
 
@@ -1002,7 +1008,7 @@ Type 'fetch' to get started!
         except (ValueError, TypeError):
             return None
 
-    def filter_by_date(self, date_range: str):
+    def filter_by_date(self, date_range: str) -> None:
         """
         Filter articles by date range.
 
@@ -1101,7 +1107,7 @@ Type 'fetch' to get started!
         print("-"*60)
         print("Tip: Use 'show <number>' for full article details")
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear Q&A conversation history."""
         if self.qa_chain:
             self.qa_chain.clear_history()
@@ -1121,7 +1127,7 @@ Type 'fetch' to get started!
     #
     # =====================================================
 
-    def show_sentiment(self, sentiment_filter: str = None):
+    def show_sentiment(self, sentiment_filter: str | None = None) -> None:
         """
         Show sentiment analysis for articles.
 
@@ -1184,7 +1190,7 @@ Type 'fetch' to get started!
         print("Tip: Use 'sentiment positive' to see only positive news")
         print("     Use 'sentiment negative' to see concerning news")
 
-    def show_trending(self, use_llm: bool = True):
+    def show_trending(self, use_llm: bool = True) -> None:
         """
         Show trending topics across all articles.
 
@@ -1230,7 +1236,7 @@ Type 'fetch' to get started!
             print("\n" + "-"*60)
             print("Tip: Use 'trending fast' for quick analysis without AI")
 
-    def show_similar(self, article_num: int):
+    def show_similar(self, article_num: int) -> None:
         """
         Find articles similar to a specific article.
 
@@ -1264,7 +1270,7 @@ Type 'fetch' to get started!
         similar = find_similar_articles(
             target_article=target,
             all_articles=self.articles,
-            threshold=0.15,  # Lower threshold to find more matches
+            threshold=SIMILARITY_THRESHOLDS["find_similar_cli"],
             max_results=5
         )
 
@@ -1275,7 +1281,7 @@ Type 'fetch' to get started!
             print("\n" + "-"*60)
             print("Tip: Use 'show <number>' to read a similar article")
 
-    def show_related(self):
+    def show_related(self) -> None:
         """
         Show all relationships between articles.
 
@@ -1314,7 +1320,7 @@ Type 'fetch' to get started!
         # Display
         display_all_relationships(analysis)
 
-    def show_comparison(self):
+    def show_comparison(self) -> None:
         """
         Compare how different sources cover the same story.
 
@@ -1385,7 +1391,7 @@ Type 'fetch' to get started!
         print("Tip: This analysis shows how different outlets")
         print("     frame the same story - helpful for spotting bias!")
 
-    def process_command(self, user_input: str):
+    def process_command(self, user_input: str) -> None:
         """
         Process a user command.
 
@@ -1532,7 +1538,7 @@ Type 'fetch' to get started!
                 print(f"\nUnknown command: '{command}'")
                 print("Type 'help' to see available commands.")
 
-    def run(self):
+    def run(self) -> None:
         """
         Main loop - runs the interactive CLI.
 
@@ -1553,10 +1559,13 @@ Type 'fetch' to get started!
                     self.process_command(user_input)
 
             except KeyboardInterrupt:
-                # Handle Ctrl+C gracefully
                 print("\n\nInterrupted. Type 'quit' to exit.")
 
-            except Exception as e:
+            except EOFError:
+                # Piped input ended — exit cleanly
+                self.is_running = False
+
+            except (ValueError, KeyError, IndexError) as e:
                 print(f"\nError: {e}")
                 print("Something went wrong. Please try again.")
 
