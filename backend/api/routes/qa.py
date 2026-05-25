@@ -26,7 +26,7 @@ class QuestionResponse(BaseModel):
 
 
 @router.post("/qa/ask")
-async def ask_question(request: QuestionRequest):
+def ask_question(request: QuestionRequest):
     """
     Ask a question about the loaded articles.
 

@@ -26,7 +26,7 @@ class FetchRequest(BaseModel):
 
 
 @router.post("/fetch")
-async def fetch_articles(request: FetchRequest):
+def fetch_articles(request: FetchRequest):
     """Fetch raw articles and (optionally) run the full processing pipeline."""
     try:
         articles = fetch_news(

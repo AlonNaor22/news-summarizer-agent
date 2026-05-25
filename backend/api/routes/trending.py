@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/trending")
-async def get_trending_topics(
+def get_trending_topics(
     use_llm: bool = Query(True, description="Use AI for smart trend detection"),
     top_n: int = Query(10, description="Number of top keywords to return")
 ):

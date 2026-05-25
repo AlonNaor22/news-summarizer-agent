@@ -51,7 +51,7 @@ async def get_same_story_groups():
 
 
 @router.get("/comparison")
-async def compare_all():
+def compare_all():
     """
     Compare all stories that have multiple source coverage.
 

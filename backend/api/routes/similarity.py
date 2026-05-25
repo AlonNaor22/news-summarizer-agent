@@ -73,7 +73,7 @@ async def get_similar_articles(
 
 
 @router.get("/relationships")
-async def get_all_relationships(
+def get_all_relationships(
     use_llm: bool = Query(True, description="Use AI for relationship analysis")
 ):
     """
