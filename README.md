@@ -334,6 +334,16 @@ npm install
 ### CORS errors in browser
 Make sure the backend is running on port 8000 before starting the frontend.
 
+## Limitations / Known Issues
+
+These are honest trade-offs in the current implementation — the kind of things you'd address before scaling beyond a personal demo:
+
+- **In-memory state**: articles and Q&A history are held in RAM and lost whenever the backend restarts.
+- **Single-user backend**: `app_state` in `backend/api/dependencies.py` is a module-level singleton — multiple concurrent users share the same articles and conversation history.
+- **No authentication**: any client that can reach the server can read, overwrite, or clear articles.
+- **No rate limiting**: `POST /api/fetch` fires one Claude API call per article; a large fetch can rack up API costs quickly.
+- **Sequential processing**: `summarize_articles`, `categorize_articles`, `tag_articles`, and `analyze_sentiments` loop articles one at a time; `asyncio.gather` + `.ainvoke` could reduce wall-clock time 5–10×.
+
 ## Contributing
 
 Contributions are welcome! Feel free to:
