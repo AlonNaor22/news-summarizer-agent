@@ -30,10 +30,10 @@ An AI-powered news aggregator that fetches the latest news articles from multipl
 
 ### Web Interface (NEW!)
 - **Modern React Dashboard**: Beautiful, responsive UI built with React and Vite
-- **Real-time Updates**: See articles as they're fetched and processed
-- **Interactive Charts**: Visualize sentiment distribution and category breakdowns
+- **Loading Feedback**: Progress indicator while articles are being fetched and processed
+- **Sentiment Distribution Bars**: Visual breakdown of positive/negative/neutral coverage by category
 - **Chat Interface**: Ask questions about your news in a conversational UI
-- **Source Comparison View**: Side-by-side comparison of how sources cover stories
+- **Per-Source Coverage Breakdown**: See how different sources cover the same story
 
 ## Quick Start (Web Interface)
 
