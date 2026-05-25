@@ -39,8 +39,23 @@ MODEL_NAME = "claude-sonnet-4-5-20250929"
 # For news summaries, we want accuracy, so we use a low value
 TEMPERATURE = 0.3
 
-# Maximum tokens (words roughly) for each summary
-MAX_TOKENS = 500
+# Per-task LLM settings. Each task tunes temperature/max_tokens differently:
+# - Classification tasks want low temperature for consistency
+# - Generative tasks need more tokens for longer output
+LLM_SETTINGS = {
+    "summarize":  {"temperature": 0.3, "max_tokens": 500},
+    "categorize": {"temperature": 0.1, "max_tokens": 50},
+    "categorize_multi": {"temperature": 0.1, "max_tokens": 100},
+    "tag":        {"temperature": 0.1, "max_tokens": 300},
+    "sentiment":  {"temperature": 0.1, "max_tokens": 150},
+    "trending":   {"temperature": 0.3, "max_tokens": 1000},
+    "similarity": {"temperature": 0.2, "max_tokens": 1500},
+    "comparison": {"temperature": 0.2, "max_tokens": 2000},
+    "qa":         {"temperature": 0.3, "max_tokens": 1000},
+}
+
+# Kept for backwards compatibility with anything still importing MAX_TOKENS
+MAX_TOKENS = LLM_SETTINGS["summarize"]["max_tokens"]
 
 # =====================================================
 # RSS FEED SOURCES (Free - No API Key Needed!)
@@ -85,6 +100,18 @@ NEWSAPI_CATEGORIES = [
 
 # Maximum number of articles to fetch per source
 MAX_ARTICLES_PER_SOURCE = 5
+
+# Average reading speed used for "X min read" estimates
+WORDS_PER_MINUTE = 200
+
+# Similarity thresholds used by src/similarity.py and src/comparator.py
+# Values are Jaccard scores in [0, 1].
+SIMILARITY_THRESHOLDS = {
+    "find_similar":   0.20,  # default threshold for find_similar_articles
+    "find_similar_cli": 0.15,  # CLI uses a lower bar to surface more matches
+    "related_pairs":  0.30,  # threshold for "are these articles related?"
+    "same_story":     0.40,  # threshold for "is this the same story?"
+}
 
 # =====================================================
 # CATEGORIES FOR CLASSIFICATION
