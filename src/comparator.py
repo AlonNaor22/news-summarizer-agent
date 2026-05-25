@@ -68,7 +68,12 @@ class SourceAnalysis(BaseModel):
 
 
 class ComparisonResult(BaseModel):
-    """Structured multi-source comparison output from Claude."""
+    """Raw structured comparison output from Claude.
+
+    ``source_analyses`` is a list (Claude's natural form). Callers consume the
+    enriched :class:`StoryComparison` instead, which re-keys this list by
+    source name to match the frontend JSON contract.
+    """
 
     story_summary: str = Field(
         description="Neutral 2-3 sentence summary of what happened",
@@ -89,6 +94,25 @@ class ComparisonResult(BaseModel):
         default="",
         description="1-2 sentences on coverage quality and diversity of perspectives",
     )
+
+
+class StoryComparison(BaseModel):
+    """A :class:`ComparisonResult` enriched with story-level metadata.
+
+    Returned by :func:`compare_sources`. ``source_analyses`` is keyed by
+    source name so the FastAPI JSON response and frontend ``Compare.jsx``
+    can keep iterating over ``Object.entries(...)``.
+    """
+
+    story_summary: str = ""
+    common_facts: list[str] = Field(default_factory=list)
+    source_analyses: dict[str, SourceAnalysis] = Field(default_factory=dict)
+    key_differences: list[str] = Field(default_factory=list)
+    overall_assessment: str = ""
+    sources: list[str] = Field(default_factory=list)
+    article_count: int = 0
+    story_title: str | None = None
+    error: str | None = None
 
 
 # =====================================================
@@ -289,94 +313,47 @@ KEYWORDS: {', '.join(keywords) if keywords else 'None'}
     return "\n".join(formatted)
 
 
-def _comparison_to_dict(result: ComparisonResult) -> dict:
-    """Translate a :class:`ComparisonResult` to the legacy dict shape callers expect.
-
-    ``source_analyses`` is a dict keyed by source name (the legacy contract used
-    by display_comparison / summarize_bias_findings).
-    """
-    return {
-        "story_summary": result.story_summary,
-        "common_facts": list(result.common_facts),
-        "source_analyses": {
-            entry.source: {
-                "tone": entry.tone,
-                "emphasis": entry.emphasis,
-                "unique_details": entry.unique_details,
-                "potential_bias": entry.potential_bias,
-            }
-            for entry in result.source_analyses
-        },
-        "key_differences": list(result.key_differences),
-        "overall_assessment": result.overall_assessment,
-    }
-
-
 # =====================================================
 # MAIN COMPARISON FUNCTION
 # =====================================================
 
-def compare_sources(articles: list[Article]) -> dict:
+def compare_sources(articles: list[Article]) -> StoryComparison:
     """Run a deep comparison of how each source covered the same story."""
 
     if len(articles) < 2:
-        return {
-            "error": "Need at least 2 articles to compare",
-            "story_summary": "",
-            "common_facts": [],
-            "source_analyses": {},
-            "key_differences": [],
-            "overall_assessment": "",
-        }
+        return StoryComparison(error="Need at least 2 articles to compare")
 
     sources = [art.source or "Unknown" for art in articles]
     print(f"\n🔍 Comparing coverage from: {', '.join(sources)}")
 
     chain = create_comparison_chain()
-
-    # Format articles
     articles_text = format_articles_for_comparison(articles)
 
-    # Call Claude — returns a validated ComparisonResult
     structured: ComparisonResult = chain.invoke({
         "source_count": len(articles),
-        "articles_text": articles_text
+        "articles_text": articles_text,
     })
 
-    result = _comparison_to_dict(structured)
+    return StoryComparison(
+        story_summary=structured.story_summary,
+        common_facts=structured.common_facts,
+        # Re-key list[SourceAnalysis] -> dict keyed by source name for the
+        # frontend's Object.entries(source_analyses) call.
+        source_analyses={entry.source: entry for entry in structured.source_analyses},
+        key_differences=structured.key_differences,
+        overall_assessment=structured.overall_assessment,
+        sources=sources,
+        article_count=len(articles),
+    )
 
-    # Add metadata
-    result["sources"] = sources
-    result["article_count"] = len(articles)
 
-    return result
-
-
-def compare_all_stories(articles: list[Article]) -> list[dict]:
-    """
-    Find all multi-source stories and compare them.
-
-    This is the main function that:
-    1. Groups articles by story
-    2. Compares each story across sources
-    3. Returns all comparisons
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        All articles (will find same-story groups)
-
-    RETURNS:
-    --------
-    list[dict]
-        Comparison results for each story group
-    """
+def compare_all_stories(articles: list[Article]) -> list[StoryComparison]:
+    """Find all multi-source stories and run :func:`compare_sources` on each."""
 
     print("\n" + "=" * 50)
     print("COMPARING SAME STORY ACROSS SOURCES")
     print("=" * 50)
 
-    # Step 1: Find stories covered by multiple sources
     print("\n📊 Finding stories with multiple sources...")
     stories = find_same_story_articles(articles)
 
@@ -387,8 +364,7 @@ def compare_all_stories(articles: list[Article]) -> list[dict]:
 
     print(f"   Found {len(stories)} stories with multiple sources")
 
-    # Step 2: Compare each story
-    comparisons = []
+    comparisons: list[StoryComparison] = []
 
     for i, story in enumerate(stories, 1):
         print(f"\n[{i}/{len(stories)}] Analyzing: {story['story_title'][:40]}...")
@@ -396,7 +372,7 @@ def compare_all_stories(articles: list[Article]) -> list[dict]:
 
         try:
             comparison = compare_sources(story["articles"])
-            comparison["story_title"] = story["story_title"]
+            comparison.story_title = story["story_title"]
             comparisons.append(comparison)
         except Exception as e:
             print(f"   Error comparing: {e}")
@@ -417,7 +393,7 @@ def compare_all_stories(articles: list[Article]) -> list[dict]:
 #
 # =====================================================
 
-def quick_compare(article_a: Article, article_b: Article) -> dict:
+def quick_compare(article_a: Article, article_b: Article) -> StoryComparison:
     """Compare two specific articles directly without group detection."""
     return compare_sources([article_a, article_b])
 
@@ -426,72 +402,59 @@ def quick_compare(article_a: Article, article_b: Article) -> dict:
 # DISPLAY FUNCTIONS
 # =====================================================
 
-def display_comparison(comparison: dict) -> None:
-    """
-    Display a source comparison in readable format.
-    """
+def display_comparison(comparison: StoryComparison) -> None:
+    """Display a source comparison in readable format."""
 
     print("\n" + "=" * 60)
     print("📰 MULTI-SOURCE COMPARISON")
     print("=" * 60)
 
-    # Story summary
-    print(f"\n📋 STORY: {comparison.get('story_title', 'Unknown')[:50]}...")
-    print(f"   Sources: {', '.join(comparison.get('sources', []))}")
+    title = (comparison.story_title or "Unknown")[:50]
+    print(f"\n📋 STORY: {title}...")
+    print(f"   Sources: {', '.join(comparison.sources)}")
 
     print(f"\n📝 SUMMARY:")
-    print(f"   {comparison.get('story_summary', 'No summary available')}")
+    print(f"   {comparison.story_summary or 'No summary available'}")
 
-    # Common facts
-    common_facts = comparison.get("common_facts", [])
-    if common_facts:
+    if comparison.common_facts:
         print(f"\n✅ COMMON FACTS (all sources agree):")
-        for fact in common_facts:
+        for fact in comparison.common_facts:
             print(f"   • {fact}")
 
-    # Source analysis
-    source_analyses = comparison.get("source_analyses", {})
-    if source_analyses:
+    if comparison.source_analyses:
         print(f"\n📊 SOURCE-BY-SOURCE ANALYSIS:")
         print("-" * 40)
 
-        for source, analysis in source_analyses.items():
-            tone = analysis.get("tone", "unknown")
+        for source, analysis in comparison.source_analyses.items():
             tone_emoji = {
                 "positive": "😊",
                 "negative": "😟",
-                "neutral": "😐"
-            }.get(tone, "❓")
+                "neutral": "😐",
+            }.get(analysis.tone, "❓")
 
             print(f"\n   📰 {source} {tone_emoji}")
-            print(f"      Tone: {tone}")
-            print(f"      Focus: {analysis.get('emphasis', 'Unknown')}")
+            print(f"      Tone: {analysis.tone}")
+            print(f"      Focus: {analysis.emphasis or 'Unknown'}")
 
-            unique = analysis.get("unique_details", "None")
-            if unique and unique.lower() != "none":
-                print(f"      Unique info: {unique}")
+            if analysis.unique_details and analysis.unique_details.lower() != "none":
+                print(f"      Unique info: {analysis.unique_details}")
 
-            bias = analysis.get("potential_bias", "None detected")
-            if bias and bias.lower() not in ["none", "none detected"]:
-                print(f"      ⚠️  Potential bias: {bias}")
+            if analysis.potential_bias and analysis.potential_bias.lower() not in ("none", "none detected"):
+                print(f"      ⚠️  Potential bias: {analysis.potential_bias}")
 
-    # Key differences
-    differences = comparison.get("key_differences", [])
-    if differences:
+    if comparison.key_differences:
         print(f"\n⚡ KEY DIFFERENCES:")
-        for diff in differences:
+        for diff in comparison.key_differences:
             print(f"   • {diff}")
 
-    # Overall assessment
-    assessment = comparison.get("overall_assessment", "")
-    if assessment:
+    if comparison.overall_assessment:
         print(f"\n🎯 OVERALL ASSESSMENT:")
-        print(f"   {assessment}")
+        print(f"   {comparison.overall_assessment}")
 
     print("\n" + "=" * 60)
 
 
-def display_all_comparisons(comparisons: list[dict]) -> None:
+def display_all_comparisons(comparisons: list[StoryComparison]) -> None:
     """Display all story comparisons."""
 
     if not comparisons:
@@ -516,7 +479,7 @@ def display_all_comparisons(comparisons: list[dict]) -> None:
 #
 # =====================================================
 
-def summarize_bias_findings(comparisons: list[dict]) -> dict:
+def summarize_bias_findings(comparisons: list[StoryComparison]) -> dict:
     """
     Summarize bias findings across all comparisons.
 
@@ -528,32 +491,28 @@ def summarize_bias_findings(comparisons: list[dict]) -> dict:
         - tone_distribution: Dict of source → tone counts
     """
 
-    sources_analyzed = set()
-    bias_mentions = {}
-    tone_distribution = {}
+    sources_analyzed: set[str] = set()
+    bias_mentions: dict[str, list[str]] = {}
+    tone_distribution: dict[str, dict[str, int]] = {}
 
     for comparison in comparisons:
-        for source, analysis in comparison.get("source_analyses", {}).items():
+        for source, analysis in comparison.source_analyses.items():
             sources_analyzed.add(source)
 
-            # Track bias mentions
-            bias = analysis.get("potential_bias", "")
-            if bias and bias.lower() not in ["none", "none detected", ""]:
-                if source not in bias_mentions:
-                    bias_mentions[source] = []
-                bias_mentions[source].append(bias)
+            bias = analysis.potential_bias
+            if bias and bias.lower() not in ("none", "none detected", ""):
+                bias_mentions.setdefault(source, []).append(bias)
 
-            # Track tone distribution
-            tone = analysis.get("tone", "unknown")
-            if source not in tone_distribution:
-                tone_distribution[source] = {"positive": 0, "negative": 0, "neutral": 0}
-            if tone in tone_distribution[source]:
-                tone_distribution[source][tone] += 1
+            tone_distribution.setdefault(
+                source, {"positive": 0, "negative": 0, "neutral": 0}
+            )
+            if analysis.tone in tone_distribution[source]:
+                tone_distribution[source][analysis.tone] += 1
 
     return {
         "sources_analyzed": list(sources_analyzed),
         "bias_mentions": bias_mentions,
-        "tone_distribution": tone_distribution
+        "tone_distribution": tone_distribution,
     }
 
 

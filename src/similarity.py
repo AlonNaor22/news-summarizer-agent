@@ -92,6 +92,24 @@ class RelatedPairList(BaseModel):
     )
 
 
+class EnrichedRelatedPair(BaseModel):
+    """A :class:`RelatedPair` joined with the article titles, ready for callers."""
+
+    article_a_index: int  # 0-based
+    article_a_title: str
+    article_b_index: int  # 0-based
+    article_b_title: str
+    relationship: Literal[
+        "same_event",
+        "same_topic",
+        "same_entities",
+        "ongoing_story",
+        "cause_effect",
+    ]
+    strength: Literal["high", "medium", "low"]
+    explanation: str
+
+
 # Helpers so similarity functions can accept either Article instances or
 # the older raw-dict shape (the test suite calls these directly with dicts).
 ArticleLike = Union[Article, dict]
@@ -408,62 +426,11 @@ Organizations: {', '.join(article.organizations) or 'None'}
     return "\n---\n".join(formatted)
 
 
-def _pair_list_to_dicts(pair_list: RelatedPairList, articles: list[Article]) -> list[dict]:
-    """Convert a :class:`RelatedPairList` to the legacy dict shape callers expect.
+def find_related_articles_llm(articles: list[Article]) -> list[EnrichedRelatedPair]:
+    """Ask Claude which articles are related and enrich each pair with titles.
 
-    The LLM produces 1-based article indices; we translate to 0-based and
-    drop any pair whose indices fall outside the input list.
-    """
-    out: list[dict] = []
-    n = len(articles)
-
-    for pair in pair_list.pairs:
-        idx_a = pair.article_a - 1
-        idx_b = pair.article_b - 1
-        if not (0 <= idx_a < n and 0 <= idx_b < n):
-            continue
-
-        out.append({
-            "article_a_index": idx_a,
-            "article_a_title": articles[idx_a].title or "Unknown",
-            "article_b_index": idx_b,
-            "article_b_title": articles[idx_b].title or "Unknown",
-            "relationship": pair.relationship,
-            "strength": pair.strength,
-            "explanation": pair.explanation,
-        })
-
-    return out
-
-
-def find_related_articles_llm(articles: list[Article]) -> list[dict]:
-    """
-    Use Claude to find related articles.
-
-    This is the SMART approach - Claude understands meaning,
-    not just keyword overlap.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        All articles to analyze
-
-    RETURNS:
-    --------
-    list[dict]
-        List of related pairs with explanations
-
-    EXAMPLE:
-    --------
-    >>> pairs = find_related_articles_llm(articles)
-    >>> print(pairs[0])
-    {
-        "article_a_title": "Apple AI Launch",
-        "article_b_title": "Google AI Response",
-        "relationship": "same_topic",
-        "strength": "high",
-        "explanation": "Both cover AI assistants in tech industry"
-    }
+    The LLM returns 1-based indices; we translate to 0-based and drop any
+    pair whose indices fall outside the input list.
     """
 
     if len(articles) < 2:
@@ -472,21 +439,34 @@ def find_related_articles_llm(articles: list[Article]) -> list[dict]:
     print("\n🤖 Asking Claude to find article relationships...")
 
     chain = create_similarity_chain()
-
-    # Format articles
     articles_text = format_articles_for_similarity(articles)
 
-    # Call Claude — returns a validated RelatedPairList
     pair_list: RelatedPairList = chain.invoke({
         "article_count": len(articles),
-        "articles_text": articles_text
+        "articles_text": articles_text,
     })
 
-    pairs = _pair_list_to_dicts(pair_list, articles)
+    n = len(articles)
+    enriched: list[EnrichedRelatedPair] = []
+    for pair in pair_list.pairs:
+        idx_a = pair.article_a - 1
+        idx_b = pair.article_b - 1
+        if not (0 <= idx_a < n and 0 <= idx_b < n):
+            continue
 
-    print(f"   Found {len(pairs)} related pairs")
+        enriched.append(EnrichedRelatedPair(
+            article_a_index=idx_a,
+            article_a_title=articles[idx_a].title or "Unknown",
+            article_b_index=idx_b,
+            article_b_title=articles[idx_b].title or "Unknown",
+            relationship=pair.relationship,
+            strength=pair.strength,
+            explanation=pair.explanation,
+        ))
 
-    return pairs
+    print(f"   Found {len(enriched)} related pairs")
+
+    return enriched
 
 
 # =====================================================
@@ -565,19 +545,19 @@ def analyze_article_relationships(
 
         # From LLM analysis
         for pair in result["llm_pairs"]:
-            if pair["article_a_index"] == i:
+            if pair.article_a_index == i:
                 connections.append({
-                    "title": pair["article_b_title"],
+                    "title": pair.article_b_title,
                     "method": "llm",
-                    "relationship": pair["relationship"],
-                    "explanation": pair["explanation"]
+                    "relationship": pair.relationship,
+                    "explanation": pair.explanation,
                 })
-            elif pair["article_b_index"] == i:
+            elif pair.article_b_index == i:
                 connections.append({
-                    "title": pair["article_a_title"],
+                    "title": pair.article_a_title,
                     "method": "llm",
-                    "relationship": pair["relationship"],
-                    "explanation": pair["explanation"]
+                    "relationship": pair.relationship,
+                    "explanation": pair.explanation,
                 })
 
         result["article_connections"][title] = connections
@@ -637,12 +617,12 @@ def display_all_relationships(analysis: dict) -> None:
                 "high": "🔴",
                 "medium": "🟡",
                 "low": "🟢"
-            }.get(pair["strength"], "⚪")
+            }.get(pair.strength, "⚪")
 
-            print(f"\n  {strength_emoji} {pair['relationship'].upper()}")
-            print(f"     📰 \"{pair['article_a_title'][:40]}...\"")
-            print(f"     📰 \"{pair['article_b_title'][:40]}...\"")
-            print(f"     💡 {pair['explanation']}")
+            print(f"\n  {strength_emoji} {pair.relationship.upper()}")
+            print(f"     📰 \"{pair.article_a_title[:40]}...\"")
+            print(f"     📰 \"{pair.article_b_title[:40]}...\"")
+            print(f"     💡 {pair.explanation}")
 
     # Display statistical relationships
     if analysis.get("statistical_pairs"):
