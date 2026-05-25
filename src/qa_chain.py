@@ -21,11 +21,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.output_parsers import StrOutputParser
 
-# Import settings
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 
 
 # =====================================================
@@ -105,11 +101,12 @@ class NewsQAChain:
         if not ANTHROPIC_API_KEY:
             raise ValueError("ANTHROPIC_API_KEY not found!")
 
+        settings = LLM_SETTINGS["qa"]
         return ChatAnthropic(
             model=MODEL_NAME,
-            temperature=0.3,    # Slightly creative for natural responses
-            max_tokens=1000,    # Longer responses for detailed answers
-            api_key=ANTHROPIC_API_KEY
+            temperature=settings["temperature"],
+            max_tokens=settings["max_tokens"],
+            api_key=ANTHROPIC_API_KEY,
         )
 
     def _create_chain(self):

@@ -30,10 +30,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 
 
 # =====================================================
@@ -142,39 +139,24 @@ def create_llm():
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
+    settings = LLM_SETTINGS["sentiment"]
     return ChatAnthropic(
         model=MODEL_NAME,
-        temperature=0.1,  # Low for consistent classification
-        max_tokens=150,   # Short responses (sentiment + reason)
-        api_key=ANTHROPIC_API_KEY
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
 
 
+_chain = None
+
+
 def create_sentiment_chain():
-    """
-    Create the sentiment analysis chain.
-
-    CHAIN STRUCTURE (LCEL):
-    -----------------------
-    SENTIMENT_PROMPT | llm | StrOutputParser()
-         ↓              ↓           ↓
-    Fill variables   Send to    Convert to
-    {title}, {content}  Claude    plain string
-
-    WHAT IS LCEL?
-    -------------
-    LCEL = LangChain Expression Language
-    It's a way to connect components using the | operator.
-
-    Think of it like Unix pipes:
-        cat file.txt | grep "error" | wc -l
-
-    Each component passes its output to the next.
-    """
-    llm = create_llm()
-    parser = StrOutputParser()
-    chain = SENTIMENT_PROMPT | llm | parser
-    return chain
+    """Return the (lazily-built) sentiment-analysis chain."""
+    global _chain
+    if _chain is None:
+        _chain = SENTIMENT_PROMPT | create_llm() | StrOutputParser()
+    return _chain
 
 
 # =====================================================

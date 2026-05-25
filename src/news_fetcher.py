@@ -26,16 +26,12 @@ from typing import Optional
 # For making HTTP requests to NewsAPI
 import requests
 
-# Import our settings from config
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import (
     RSS_FEEDS,
     MAX_ARTICLES_PER_SOURCE,
     NEWS_API_KEY,
     NEWSAPI_SOURCES,
-    NEWSAPI_CATEGORIES
+    NEWSAPI_CATEGORIES,
 )
 
 

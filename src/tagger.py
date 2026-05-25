@@ -29,10 +29,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 
 
 # =====================================================
@@ -88,34 +85,24 @@ def create_llm():
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
+    settings = LLM_SETTINGS["tag"]
     return ChatAnthropic(
         model=MODEL_NAME,
-        temperature=0.1,  # Low temperature for consistent extraction
-        max_tokens=300,
-        api_key=ANTHROPIC_API_KEY
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
 
 
+_chain = None
+
+
 def create_tagging_chain():
-    """
-    Create the tagging chain.
-
-    CHAIN STRUCTURE:
-    ----------------
-    prompt | llm | parser
-
-    1. prompt: Fills in {title} and {content}
-    2. llm: Sends to Claude, gets response
-    3. parser: Converts response to string
-
-    RETURNS:
-    --------
-    A chain that extracts keywords and entities
-    """
-    llm = create_llm()
-    parser = StrOutputParser()
-    chain = TAGGING_PROMPT | llm | parser
-    return chain
+    """Return the (lazily-built) tagging chain."""
+    global _chain
+    if _chain is None:
+        _chain = TAGGING_PROMPT | create_llm() | StrOutputParser()
+    return _chain
 
 
 def parse_tagging_response(response: str) -> dict:

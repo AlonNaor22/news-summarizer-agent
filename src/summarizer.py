@@ -16,11 +16,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# Import our settings
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME, TEMPERATURE, MAX_TOKENS
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 
 
 # =====================================================
@@ -51,14 +47,13 @@ def create_llm():
             "See .env.example for the format."
         )
 
-    llm = ChatAnthropic(
-        model=MODEL_NAME,           # e.g., "claude-sonnet-4-5-20250929"
-        temperature=TEMPERATURE,     # 0.3 - slightly creative but focused
-        max_tokens=MAX_TOKENS,       # 500 tokens max per response
-        api_key=ANTHROPIC_API_KEY
+    settings = LLM_SETTINGS["summarize"]
+    return ChatAnthropic(
+        model=MODEL_NAME,
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
-
-    return llm
 
 
 # =====================================================
@@ -117,35 +112,17 @@ Provide a clear, concise summary:""")
 #
 # =====================================================
 
+# Lazily-built singleton chain. Reused across all articles in a fetch
+# pipeline instead of paying the LLM client construction cost per article.
+_chain = None
+
+
 def create_summary_chain():
-    """
-    Create a chain that summarizes articles.
-
-    WHAT IS A CHAIN?
-    ----------------
-    A chain is a pipeline that connects:
-    1. Prompt Template (fills in variables)
-    2. LLM (sends to Claude, gets response)
-    3. Output Parser (converts response to string)
-
-    The | operator connects them:
-        prompt | llm | parser
-
-    RETURNS:
-    --------
-    A chain object that you can call with .invoke()
-    """
-
-    llm = create_llm()
-
-    # StrOutputParser converts Claude's response to a plain string
-    parser = StrOutputParser()
-
-    # Connect them: prompt → llm → parser
-    # This is called LCEL (LangChain Expression Language)
-    chain = SUMMARY_PROMPT | llm | parser
-
-    return chain
+    """Return the (lazily-built) summarization chain."""
+    global _chain
+    if _chain is None:
+        _chain = SUMMARY_PROMPT | create_llm() | StrOutputParser()
+    return _chain
 
 
 # =====================================================

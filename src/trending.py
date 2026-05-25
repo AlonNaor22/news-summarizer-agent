@@ -41,10 +41,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from collections import Counter
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 
 
 # =====================================================
@@ -256,24 +253,24 @@ def create_trend_llm():
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
+    settings = LLM_SETTINGS["trending"]
     return ChatAnthropic(
         model=MODEL_NAME,
-        temperature=0.3,  # Moderate: some creativity for insights
-        max_tokens=1000,  # Longer output for multiple trends
-        api_key=ANTHROPIC_API_KEY
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
 
 
-def create_trend_chain():
-    """
-    Create the trend analysis chain.
+_chain = None
 
-    This chain takes ALL articles and identifies trends.
-    """
-    llm = create_trend_llm()
-    parser = StrOutputParser()
-    chain = TREND_ANALYSIS_PROMPT | llm | parser
-    return chain
+
+def create_trend_chain():
+    """Return the (lazily-built) trend-analysis chain."""
+    global _chain
+    if _chain is None:
+        _chain = TREND_ANALYSIS_PROMPT | create_trend_llm() | StrOutputParser()
+    return _chain
 
 
 def format_articles_for_trend_analysis(articles: list[dict]) -> str:

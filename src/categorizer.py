@@ -16,11 +16,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# Import our settings
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME, TEMPERATURE, CATEGORIES
+from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
 
 
 # =====================================================
@@ -100,32 +96,26 @@ def create_llm():
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found! Check your .env file.")
 
+    settings = LLM_SETTINGS["categorize"]
     return ChatAnthropic(
         model=MODEL_NAME,
-        temperature=0.1,  # Very low temperature for consistent classification
-        max_tokens=50,    # Category names are short
-        api_key=ANTHROPIC_API_KEY
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
 
 
+# Lazy singletons — chains are built once and reused for every article.
+_single_chain = None
+_multi_chain = None
+
+
 def create_categorize_chain():
-    """
-    Create a chain for categorizing articles.
-
-    WHY TEMPERATURE = 0.1?
-    ----------------------
-    For classification, we want CONSISTENT results.
-    - Same article should always get same category
-    - Low temperature = less randomness = more predictable
-
-    Compare to summarization where we used 0.3:
-    - Summaries can have slight variation in wording
-    - Categories must be exact matches
-    """
-    llm = create_llm()
-    parser = StrOutputParser()
-    chain = CATEGORIZE_PROMPT | llm | parser
-    return chain
+    """Return the (lazily-built) single-category chain."""
+    global _single_chain
+    if _single_chain is None:
+        _single_chain = CATEGORIZE_PROMPT | create_llm() | StrOutputParser()
+    return _single_chain
 
 
 def clean_category(raw_category: str) -> str:
@@ -264,20 +254,18 @@ def categorize_articles(articles: list[dict]) -> list[dict]:
 # =====================================================
 
 def create_multi_categorize_chain():
-    """
-    Create a chain for multi-category classification.
-
-    This chain returns PRIMARY and SECONDARY categories.
-    """
-    llm = ChatAnthropic(
-        model=MODEL_NAME,
-        temperature=0.1,
-        max_tokens=100,  # Slightly more for multiple categories
-        api_key=ANTHROPIC_API_KEY
-    )
-    parser = StrOutputParser()
-    chain = MULTI_CATEGORIZE_PROMPT | llm | parser
-    return chain
+    """Return the (lazily-built) multi-category chain."""
+    global _multi_chain
+    if _multi_chain is None:
+        settings = LLM_SETTINGS["categorize_multi"]
+        llm = ChatAnthropic(
+            model=MODEL_NAME,
+            temperature=settings["temperature"],
+            max_tokens=settings["max_tokens"],
+            api_key=ANTHROPIC_API_KEY,
+        )
+        _multi_chain = MULTI_CATEGORIZE_PROMPT | llm | StrOutputParser()
+    return _multi_chain
 
 
 def parse_multi_category_response(response: str) -> dict:

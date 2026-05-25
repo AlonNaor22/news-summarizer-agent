@@ -42,12 +42,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME
-
-# Import our similarity module for grouping related articles
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
 from src.similarity import calculate_combined_similarity
 
 
@@ -69,7 +64,7 @@ from src.similarity import calculate_combined_similarity
 
 def group_articles_by_story(
     articles: list[dict],
-    similarity_threshold: float = 0.4
+    similarity_threshold: float = SIMILARITY_THRESHOLDS["same_story"]
 ) -> list[list[dict]]:
     """
     Group articles that cover the same story/event.
@@ -294,19 +289,24 @@ def create_comparison_llm():
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
+    settings = LLM_SETTINGS["comparison"]
     return ChatAnthropic(
         model=MODEL_NAME,
-        temperature=0.2,   # Low for objective analysis
-        max_tokens=2000,   # Long output for detailed comparison
-        api_key=ANTHROPIC_API_KEY
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
 
 
+_chain = None
+
+
 def create_comparison_chain():
-    """Create the comparison analysis chain."""
-    llm = create_comparison_llm()
-    parser = StrOutputParser()
-    return COMPARISON_PROMPT | llm | parser
+    """Return the (lazily-built) source-comparison chain."""
+    global _chain
+    if _chain is None:
+        _chain = COMPARISON_PROMPT | create_comparison_llm() | StrOutputParser()
+    return _chain
 
 
 def format_articles_for_comparison(articles: list[dict]) -> str:

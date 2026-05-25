@@ -51,10 +51,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, MODEL_NAME
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
 
 
 # =====================================================
@@ -241,7 +238,7 @@ def calculate_combined_similarity(article_a: dict, article_b: dict) -> dict:
 def find_similar_articles(
     target_article: dict,
     all_articles: list[dict],
-    threshold: float = 0.2,
+    threshold: float = SIMILARITY_THRESHOLDS["find_similar"],
     max_results: int = 5
 ) -> list[dict]:
     """
@@ -300,7 +297,7 @@ def find_similar_articles(
 
 def find_all_related_pairs(
     articles: list[dict],
-    threshold: float = 0.3
+    threshold: float = SIMILARITY_THRESHOLDS["related_pairs"]
 ) -> list[dict]:
     """
     Find ALL pairs of related articles.
@@ -477,19 +474,24 @@ def create_similarity_llm():
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
+    settings = LLM_SETTINGS["similarity"]
     return ChatAnthropic(
         model=MODEL_NAME,
-        temperature=0.2,
-        max_tokens=1500,  # May need more for many pairs
-        api_key=ANTHROPIC_API_KEY
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        api_key=ANTHROPIC_API_KEY,
     )
 
 
+_chain = None
+
+
 def create_similarity_chain():
-    """Create the similarity analysis chain."""
-    llm = create_similarity_llm()
-    parser = StrOutputParser()
-    return SIMILARITY_PROMPT | llm | parser
+    """Return the (lazily-built) similarity-analysis chain."""
+    global _chain
+    if _chain is None:
+        _chain = SIMILARITY_PROMPT | create_similarity_llm() | StrOutputParser()
+    return _chain
 
 
 def format_articles_for_similarity(articles: list[dict]) -> str:
@@ -693,7 +695,9 @@ def analyze_article_relationships(
     # Statistical Analysis (Fast, Free)
     # -------------------------------------------------
     print("\n📊 Finding relationships by keyword overlap...")
-    result["statistical_pairs"] = find_all_related_pairs(articles, threshold=0.2)
+    result["statistical_pairs"] = find_all_related_pairs(
+        articles, threshold=SIMILARITY_THRESHOLDS["find_similar"]
+    )
     print(f"   Found {len(result['statistical_pairs'])} related pairs")
 
     # -------------------------------------------------
