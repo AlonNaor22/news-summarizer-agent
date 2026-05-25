@@ -1,16 +1,4 @@
-"""
-Articles API Routes
-
-Endpoints for fetching, processing, and managing news articles.
-"""
-
-import sys
-import os
-
-# Get the project root directory
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+"""Articles API routes — fetching, processing, and managing news articles."""
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel

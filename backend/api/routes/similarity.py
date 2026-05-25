@@ -1,16 +1,4 @@
-"""
-Similarity API Routes
-
-Endpoints for finding similar and related articles.
-"""
-
-import sys
-import os
-
-# Get the project root directory
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+"""Similarity API routes — finding similar and related articles."""
 
 from fastapi import APIRouter, HTTPException, Query
 

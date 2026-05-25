@@ -1,16 +1,4 @@
-"""
-Sentiment API Routes
-
-Endpoints for sentiment analysis of articles.
-"""
-
-import sys
-import os
-
-# Get the project root directory
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+"""Sentiment API routes — sentiment analysis of articles."""
 
 from fastapi import APIRouter, Query
 from typing import Optional

@@ -1,16 +1,4 @@
-"""
-Comparison API Routes
-
-Endpoints for comparing how different sources cover the same story.
-"""
-
-import sys
-import os
-
-# Get the project root directory
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+"""Comparison API routes — comparing how different sources cover the same story."""
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
