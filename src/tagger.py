@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+from src.retry_utils import retried_invoke
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ def tag_article(article: Article) -> Article:
 
     logger.info("Tagging: %s...", title[:40])
 
-    tags: ArticleTags = chain.invoke({
+    tags: ArticleTags = retried_invoke(chain, {
         "title": title,
         "content": content,
     })

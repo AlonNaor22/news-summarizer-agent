@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
 from src.models import Article
+from src.retry_utils import retried_invoke
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +195,7 @@ def categorize_article(article: Article) -> Article:
 
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
-    raw_response = chain.invoke({
+    raw_response = retried_invoke(chain, {
         "categories": categories_str,
         "title": title,
         "summary": summary,
@@ -279,7 +280,7 @@ def categorize_article_multi(article: Article) -> Article:
 
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
-    parsed: MultiCategoryResult = chain.invoke({
+    parsed: MultiCategoryResult = retried_invoke(chain, {
         "categories": categories_str,
         "title": title,
         "summary": summary,

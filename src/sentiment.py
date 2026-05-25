@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+from src.retry_utils import retried_invoke
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,7 @@ def analyze_sentiment(article: Article) -> Article:
 
     logger.info("Analyzing sentiment: %s...", title[:40])
 
-    result: SentimentResult = chain.invoke({
+    result: SentimentResult = retried_invoke(chain, {
         "title": title,
         "content": content,
     })

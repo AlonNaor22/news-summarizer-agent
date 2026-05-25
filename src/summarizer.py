@@ -20,6 +20,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+from src.retry_utils import retried_invoke
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ def summarize_article(article: Article) -> Article:
 
     logger.info("Summarizing: %s...", title[:50])
 
-    summary = chain.invoke({
+    summary = retried_invoke(chain, {
         "title": title,
         "content": content,
     })
