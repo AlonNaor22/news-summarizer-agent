@@ -5,14 +5,16 @@
 **Summary:** Strong feature breadth (CLI + FastAPI + React all wired to a real Claude/LangChain pipeline with sentiment, trending, similarity, and multi-source comparison) is undermined by a 1571-line god-class CLI, an LLM that gets re-instantiated for every single article, broken CI, and a real Anthropic API key sitting in plaintext on disk — the kind of issues a senior reviewer would flag in the first ten minutes.
 
 > **How to use this file:** every open `- [ ]` item is followed by a fenced `Prompt for a new chat` block. Copy the contents of the block, start a new conversation in this repo, paste, and a fresh agent will execute that one task. Completed items (`- [x]`) record what changed and where.
+>
+> **Model labels:** each prompt header reads `Prompt for a new chat (model: Sonnet)` or `(model: Opus)`. Use Sonnet for well-defined, localized changes (the default). Use Opus for tasks marked as such — they involve architectural decisions, multi-file coordination, async correctness, or new infra (Docker, RAG, SQLite, streaming).
 
 ## 1. Code Quality
 
 - [ ] 🔴 Split [main.py](main.py) (1571 lines, `NewsSummarizerAgent` class) into focused modules — at minimum `cli/commands.py`, `cli/display.py`, `cli/state.py`, `cli/main.py`. A single-file CLI of this size is the first thing a reviewer will mention.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 Split main.py (1571 lines) into focused modules. The single
 NewsSummarizerAgent class mixes business logic, display (print +
 box-drawing), command parsing (the process_command if/elif chain),
@@ -39,8 +41,8 @@ fetch, show, quit.
 - [ ] 🔴 Replace the `list[dict]` article representation with a Pydantic `Article` model. Every module accesses fields via `.get("summary", article.get("description", ""))` which is fragile and untyped. Define it once in `src/models.py`.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 Replace the list[dict] article representation with a Pydantic
 Article model. Every src/ module currently accesses fields via
 .get("summary", article.get("description", "")) — fragile and
@@ -68,8 +70,8 @@ to construct Article objects instead of raw dicts.
 - [ ] 🟡 Replace manual LLM output parsing in [src/sentiment.py:201](src/sentiment.py:201), [src/tagger.py:121](src/tagger.py:121), [src/categorizer.py:283](src/categorizer.py:283), [src/trending.py:325](src/trending.py:325), [src/similarity.py:517](src/similarity.py:517), [src/comparator.py:338](src/comparator.py:338) with structured outputs (LangChain `with_structured_output()` or Anthropic tool-use). The current `line.split(":")` parsing is fragile and breaks silently when Claude varies its format. **This is a major portfolio talking point** — junior candidates almost never know this.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 Replace manual LLM output parsing with LangChain structured
 outputs. Six modules currently parse Claude's plain-text response
 with line.split(":") — fragile when Claude varies its format.
@@ -102,8 +104,8 @@ tests to mock the LLM and assert the Pydantic model.
 - [ ] 🟢 Print statements are used as logging throughout `src/` ([summarizer.py:190](src/summarizer.py:190), [news_fetcher.py:80](src/news_fetcher.py:80), etc.). Replace with `logging.getLogger(__name__)` — library code shouldn't print.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Replace print() calls in src/ modules with proper logging.
 Library code shouldn't print to stdout.
 
@@ -132,8 +134,8 @@ backend/main.py so users see the messages.
 - [ ] 🔴 [src/news_fetcher.py:81](src/news_fetcher.py:81) — `feedparser.parse(feed_url)` has **no timeout**. A slow RSS feed will hang the entire fetch. Wrap with `requests.get(url, timeout=10)` and pass bytes to feedparser.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 src/news_fetcher.py:81 — feedparser.parse(feed_url) has no
 timeout. A slow RSS feed hangs the entire fetch pipeline.
 
@@ -150,8 +152,8 @@ hanging.
 - [ ] 🔴 [backend/api/routes/articles.py:87](backend/api/routes/articles.py:87), [qa.py:66](backend/api/routes/qa.py:66) — `raise HTTPException(status_code=500, detail=str(e))` leaks raw Python exception messages (including potential stack-trace info and API keys in some LangChain errors) to HTTP clients. Log the exception server-side and return a sanitized message.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 backend/api/routes/articles.py:87 and backend/api/routes/qa.py:66
 raise HTTPException(status_code=500, detail=str(e)). This leaks
 raw Python exception messages — including potential API keys or
@@ -170,8 +172,8 @@ contains internal details.
 - [ ] 🟡 No retry/backoff on Anthropic API calls. A transient 529 rate-limit kills the whole fetch pipeline. Use `tenacity` for exponential backoff on `summarize_articles`, `categorize_articles`, `tag_articles`, `analyze_sentiments` — these are the four loops that hit Claude N times.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add retry/backoff to Anthropic API calls. A transient 529
 (overloaded) currently kills the whole fetch pipeline.
 
@@ -193,8 +195,8 @@ that mocks ChatAnthropic to fail twice then succeed.
 - [ ] 🟡 [src/news_fetcher.py:313](src/news_fetcher.py:313) — NewsAPI request has `timeout=10` but the except block swallows the error with a print and returns `[]`. The caller can't distinguish "no articles" from "network down" from "bad API key". Return a `Result` type or raise a custom exception.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 src/news_fetcher.py:313 — the NewsAPI request catches
 requests.exceptions.RequestException, prints, and returns [].
 The caller can't tell "no articles" from "network down" from
@@ -216,8 +218,8 @@ Verify pytest tests/ still passes.
 - [ ] 🟡 [backend/api/routes/qa.py:36](backend/api/routes/qa.py:36) — `request.question` has no validation. A 100KB question or empty string both reach the LLM. Add `Field(..., min_length=1, max_length=2000)` to the Pydantic model.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 backend/api/routes/qa.py:36 — request.question has no length
 validation. A 100KB question or empty string both reach the LLM.
 
@@ -231,8 +233,8 @@ empty and oversized questions (use FastAPI TestClient).
 - [ ] 🟡 [main.py:653](main.py:653) — `os.makedirs(output_dir)` will silently re-raise on race condition. Use `os.makedirs(output_dir, exist_ok=True)`.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 main.py around line 653 has:
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -246,8 +248,8 @@ This has a race condition. Replace with one line:
 - [ ] 🟡 Empty `except (ValueError, IndexError)` in [src/trending.py:415](src/trending.py:415) and [src/similarity.py:579](src/similarity.py:579) silently swallows parse errors and leaves fields at default values. At minimum, log a warning.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 src/trending.py:415 and src/similarity.py:579 each have
 `except (ValueError, IndexError)` blocks that silently swallow
 parse errors and leave fields at defaults.
@@ -265,8 +267,8 @@ these parsers are deleted entirely and this task is moot.
 - [ ] 🔴 [backend/api/dependencies.py:37](backend/api/dependencies.py:37) — `app_state = AppState()` is a module-level global mutable singleton. Every user shares the same articles and Q&A history. Acceptable for a demo, but you need to either acknowledge this in the README or move to a per-session store (Redis, in-memory dict keyed by session ID). At minimum, document the limitation.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 backend/api/dependencies.py:37 — `app_state = AppState()` is a
 module-level global. Every user of the deployed backend shares
 the same articles and Q&A history.
@@ -287,8 +289,8 @@ architectural CHOICE is the portfolio-relevant part — document it.
 - [ ] 🔴 [main.py](main.py) `NewsSummarizerAgent` mixes business logic, display rendering, command parsing, and state management. Extract `Display` (all the `print` calls and box-drawing), `CommandRouter` (the giant `process_command` if/elif chain), and `AgentState` (articles + caches + qa_chain).
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 This task overlaps with "Split main.py" in section 1 — do that
 task and this one is satisfied. The cli/display.py +
 cli/commands.py + cli/state.py split IS the Display + CommandRouter
@@ -299,8 +301,8 @@ split task is done.
 - [ ] 🔴 The backend duplicates the orchestration logic from `main.py`'s `fetch_news`. Both call `summarize_articles → categorize_articles → tag_articles → analyze_sentiments` in sequence. Extract this to `src/pipeline.py` and call it from both entry points.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 main.py's fetch_news method and backend/api/routes/articles.py's
 fetch_articles handler both call summarize_articles →
 categorize_articles → tag_articles → analyze_sentiments in
@@ -322,8 +324,8 @@ result.
 - [ ] 🟡 FastAPI route handlers are `async def` but call **synchronous** LangChain code that blocks the event loop ([backend/api/routes/articles.py:64](backend/api/routes/articles.py:64), [qa.py:57](backend/api/routes/qa.py:57)). Either make them `def` (let FastAPI run them in a threadpool) or use `await asyncio.to_thread(...)` for the LLM calls. As-is, the server serves one request at a time during a fetch.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 FastAPI route handlers in backend/api/routes/articles.py:64 and
 backend/api/routes/qa.py:57 are `async def` but call synchronous
 LangChain code that blocks the event loop. The server serves one
@@ -347,8 +349,8 @@ tasks reinforce each other.
 - [ ] 🟡 [config.py:118](config.py:118) defines `CORS_ORIGINS` but [backend/main.py:52](backend/main.py:52) hardcodes the same list instead of importing from config. Either source from config or delete the dead constant in config.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 config.py defines CORS_ORIGINS but backend/main.py:52 hardcodes
 the same list inline instead of importing from config.
 
@@ -362,8 +364,8 @@ still call the backend.
 - [ ] 🟡 [src/comparator.py:51](src/comparator.py:51) imports `from src.similarity import calculate_combined_similarity` while all other src/ modules import via the sys.path hack. Inconsistent — a sign the package boundary isn't well-defined.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 src/comparator.py imports `from src.similarity import
 calculate_combined_similarity` (absolute, via the project root).
 With the package now installed via pyproject.toml, this works —
@@ -383,8 +385,8 @@ still passes.
 - [ ] 🟢 [src/qa_chain.py:115](src/qa_chain.py:115) — `_create_chain` is called once in `__init__` but `_format_articles_for_context` is recomputed on every `ask()`. For a long conversation with 30 articles, this re-formats the context 30 times. Cache it when articles are loaded.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 src/qa_chain.py — _format_articles_for_context is called inside
 every ask() call. For a 30-message conversation with 30 articles,
 the same text block is built 30 times.
@@ -402,8 +404,8 @@ Verify pytest tests/ still passes.
 - [ ] 🔴 No tests cover any module that calls Claude — [src/summarizer.py](src/summarizer.py), [src/sentiment.py](src/sentiment.py), [src/trending.py](src/trending.py), [src/comparator.py](src/comparator.py), [src/qa_chain.py](src/qa_chain.py). Add tests that mock `ChatAnthropic` (use `unittest.mock.patch`) — being able to test LLM code without hitting the API is a top-tier portfolio skill.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add unit tests that mock ChatAnthropic for the modules that hit
 Claude:
 - src/summarizer.py
@@ -438,8 +440,8 @@ goes from 40 to ~60 passing.
 - [ ] 🔴 No tests for any FastAPI endpoint. Add `tests/test_api.py` using `fastapi.testclient.TestClient` — covers articles, sentiment, trending, qa routes at minimum. A reviewer can run this in 10 seconds to verify the API contract.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add tests/test_api.py using fastapi.testclient.TestClient covering
 the FastAPI endpoints.
 
@@ -462,8 +464,8 @@ After: pytest tests/ should include ~10 new tests and pass.
 - [ ] 🟡 [tests/conftest.py:5](tests/conftest.py:5) — `sample_article` fixture is defined but never used by any test. Either use it or delete it.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 tests/conftest.py defines a `sample_article` fixture that no test
 currently uses.
 
@@ -478,8 +480,8 @@ Pick one and apply. Verify pytest tests/ still passes.
 - [ ] 🟡 [tests/test_categorizer.py](tests/test_categorizer.py) only tests pure-Python helpers (`clean_category`, `parse_multi_category_response`, `group_by_category`) — these are the easy bits. Tests don't cover the full `categorize_article` pipeline because there's no LLM mocking infrastructure. Add it.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 tests/test_categorizer.py only tests pure-Python helpers. Add
 tests that mock the LLM and cover the full categorize_article
 and categorize_articles flow.
@@ -500,8 +502,8 @@ increases.
 - [ ] 🟡 No edge-case tests for empty input, malformed Claude responses, or NewsAPI 401/429 errors. Add tests asserting that `parse_sentiment_response("garbage")` returns the documented default rather than crashing.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add edge-case tests for the parser functions and error paths:
 - parse_sentiment_response("garbage") returns the documented
   neutral default
@@ -524,8 +526,8 @@ Pydantic models reject malformed input.
 - [ ] 🟡 No tests for [src/news_fetcher.py](src/news_fetcher.py). Mock `feedparser.parse` and `requests.get` and assert article structure.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add tests/test_news_fetcher.py. Mock feedparser.parse and
 requests.get (use pytest-mock or unittest.mock).
 
@@ -547,8 +549,8 @@ Confirm pytest tests/ count increases by ~5.
 - [ ] 🟢 No frontend tests at all — add at least one Vitest test for `SentimentBadge` rendering and one for the `api.js` client (mock axios).
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add frontend tests using Vitest.
 
 In frontend/package.json devDependencies, add: vitest,
@@ -573,8 +575,8 @@ Run `npm test` from frontend/ and confirm both pass.
 - [ ] 🔴 [README.md:1](README.md:1) — CI badge points to a workflow on the `main` branch but the repo is on `master`. The badge will perpetually show "no status" or red. Fix the workflow branch (see DevOps below) — the badge will then work.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README.md line 1 has a CI badge pointing at a workflow that
 triggers on `main` but the repo's default branch is `master`. The
 badge will never go green.
@@ -595,8 +597,8 @@ section 6.)
 - [ ] 🔴 [README.md:33](README.md:33) — claims "Real-time Updates: See articles as they're fetched and processed". There is no streaming, SSE, or websockets in the codebase — the frontend polls after the request completes. Either remove the claim or implement streaming (which would be impressive — see section 7).
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README.md line 33 claims "Real-time Updates: See articles as
 they're fetched and processed". There is no streaming/SSE/
 websockets in the code — the frontend just polls after the request
@@ -614,8 +616,8 @@ Don't ship claims the code doesn't back up.
 - [ ] 🔴 [README.md:34](README.md:34) — claims "Interactive Charts: Visualize sentiment distribution and category breakdowns". The dashboard renders CSS bars, not charts. Either install `recharts`/`chart.js` and use it, or rewrite the claim as "visual sentiment bars".
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README.md line 34 claims "Interactive Charts: Visualize sentiment
 distribution and category breakdowns". The Dashboard renders CSS
 bars, not charts.
@@ -635,8 +637,8 @@ and visiting the dashboard.
 - [ ] 🟡 [README.md:114-149](README.md:114) — "Web Interface Screenshots" section has no actual screenshots. Take 3–4 screenshots (Dashboard, Articles, Chat, Trending) and embed them. For a portfolio project, visual proof of the UI is worth more than the README text combined.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README.md "Web Interface Screenshots" section has no actual
 screenshots — just text descriptions.
 
@@ -657,8 +659,8 @@ this task open and ping the user.
 - [ ] 🟡 [README.md:29](README.md:29) — claims "Source Comparison View: Side-by-side comparison of how sources cover stories" but [frontend/src/pages/Compare.jsx](frontend/src/pages/Compare.jsx) renders a stacked list, not side-by-side. Either rebuild the UI or rephrase.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README.md line 29 claims "Source Comparison View: Side-by-side
 comparison of how sources cover stories" but
 frontend/src/pages/Compare.jsx renders a stacked list.
@@ -677,8 +679,8 @@ checking the Compare page at desktop and mobile widths.
 - [ ] 🟡 README has no architecture section. Add a small diagram (mermaid works in GitHub markdown) showing CLI/Backend → src/ pipeline modules → Claude/RSS/NewsAPI. Reviewers want to see system thinking, not just feature lists.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README has no architecture section. Add one with a mermaid diagram
 (GitHub renders mermaid in markdown natively).
 
@@ -695,8 +697,8 @@ confirm it renders.
 - [ ] 🟡 README has no "Limitations / Known Issues" section. Mention: in-memory state (lost on restart), global state means single-user, no auth, no rate limiting. Being honest about what's not done shows engineering maturity.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README has no "Limitations / Known Issues" section. Add one near
 the bottom (before License) listing:
 - In-memory state: articles and Q&A history are lost on backend
@@ -714,8 +716,8 @@ recruiters look for this.
 - [ ] 🟢 Most docstrings in `src/` are tutorial explanations ("WHAT IS RSS?", "WHY DO WE NEED THIS?"). They were great when learning but read as junior-level in a portfolio. Trim them to short descriptions of args/returns; the WHY belongs in a separate `docs/` if anywhere.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Most docstrings in src/ are tutorial-style ("WHAT IS RSS?",
 "WHY DO WE NEED THIS?"). Reads as junior-level in a portfolio.
 
@@ -735,8 +737,8 @@ pytest tests/ still passes.
 - [ ] 🟢 No `LICENSE` file in the repo despite README claiming MIT. Add a real `LICENSE` file with the MIT text.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README claims MIT but there is no LICENSE file.
 
 Create LICENSE at the repo root with the standard MIT text. Use
@@ -752,8 +754,8 @@ One-file task. Commit and push.
 - [ ] 🔴 **Rotate your Anthropic and NewsAPI keys immediately.** The real keys are sitting in plaintext at [.env](.env) on this dev machine. `git log -- .env` confirms it was never committed (good), but the key has been on disk in a portfolio project directory you've likely shared screenshots of and uploaded to backups. Revoke via [Anthropic console](https://console.anthropic.com/) and [NewsAPI dashboard](https://newsapi.org/account), generate new ones, and **never type real keys into a portfolio project's .env again** — use a shell-scoped `export` or a secrets manager.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 The .env file in this repo contains real Anthropic and NewsAPI
 keys. Even though .env is in .gitignore and was never committed,
 the keys have been on disk in plaintext.
@@ -772,8 +774,8 @@ rotation themselves; do not attempt to revoke keys via any API.
 - [ ] 🔴 [.github/workflows/ci.yml:5](.github/workflows/ci.yml:5) — workflow triggers on `branches: [main]` but the repo's default branch is `master`. CI literally never runs. Change to `master` (or rename the branch to `main`).
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 .github/workflows/ci.yml line 5 triggers on `branches: [main]`
 but the repo's default branch is master. CI never runs.
 
@@ -787,8 +789,8 @@ next commit.
 - [ ] 🔴 [.github/workflows/ci.yml:22](.github/workflows/ci.yml:22) — CI only installs `requirements-dev.txt` (just `pytest`). The tests import from `src.categorizer` which imports `langchain_anthropic` — they would fail with `ModuleNotFoundError` if CI actually ran. Add `pip install -r requirements.txt` (and a stub `ANTHROPIC_API_KEY=test` env var so config doesn't blow up).
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 .github/workflows/ci.yml only runs `pip install -r
 requirements-dev.txt` (just pytest). Tests import from
 src.categorizer which needs langchain-anthropic — they'd fail
@@ -810,8 +812,8 @@ Push and verify the next commit's Action run goes green.
 - [ ] 🔴 No `Dockerfile` or `docker-compose.yml`. For a junior AI/Python role this is now table stakes — a single `docker compose up` to get the whole stack running is the most impressive piece of devops a junior can demonstrate.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 No Dockerfile or docker-compose.yml exists. For a junior AI/Python
 role, `docker compose up` should bring up the whole stack.
 
@@ -835,8 +837,8 @@ the frontend can call the backend.
 - [ ] 🟡 [requirements.txt:10](requirements.txt:10) — `langchain>=0.1.0` with no upper bound. LangChain had breaking API changes in 0.2 and 0.3. Pin to a range like `langchain>=0.3.0,<0.4.0`. Same issue for `langchain-anthropic>=0.1.0`, `anthropic>=0.18.0`.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 requirements.txt has unpinned upper bounds: langchain>=0.1.0,
 langchain-anthropic>=0.1.0, anthropic>=0.18.0. LangChain had
 breaking changes in 0.2 and 0.3.
@@ -854,8 +856,8 @@ Verify a fresh venv install still works.
 - [ ] 🟡 [backend/main.py:82](backend/main.py:82) — `/api/health` returns `{"status": "healthy"}` unconditionally. It should at least verify `ANTHROPIC_API_KEY` is set and optionally do a cheap upstream check.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 backend/main.py:82 — /api/health returns {"status": "healthy"}
 unconditionally. It should verify dependencies are configured.
 
@@ -873,8 +875,8 @@ Add a test in tests/test_api.py asserting both code paths
 - [ ] 🟡 No structured logging. Add `logging` with a JSON formatter in `backend/main.py` and replace `print()` calls in `src/` modules. A senior reviewer will look for this.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 The project uses print() everywhere. Add structured logging.
 
 1. Add python-json-logger to pyproject.toml dependencies.
@@ -896,8 +898,8 @@ request_id (uuid4) per request in the log records.
 - [ ] 🟡 No rate limiting on the FastAPI endpoints. The `/api/fetch` endpoint fires off N Claude calls per request — easy to rack up bills. Add `slowapi` or document the limitation.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 No rate limiting on FastAPI endpoints. /api/fetch fires N Claude
 calls per request — easy to rack up bills if exposed publicly.
 
@@ -920,8 +922,8 @@ Verify with a burst test (4 curls in quick succession to
 - [ ] 🟡 No frontend `.env.example`. The API base URL is hardcoded to `http://localhost:8000/api` in [frontend/src/services/api.js:3](frontend/src/services/api.js:3) — won't work for any deploy. Use `import.meta.env.VITE_API_URL`.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 frontend/src/services/api.js:3 hardcodes API_BASE_URL =
 'http://localhost:8000/api'. Won't work in any deploy.
 
@@ -941,8 +943,8 @@ Verify the dev server still works without setting the env var
 - [ ] 🟢 [.gitignore](.gitignore) is good but consider adding `*.pyc`, `.DS_Store`, `.coverage`, `htmlcov/`, `dist/`, `*.egg-info/` for future-proofing.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 .gitignore is decent but missing some common entries.
 
 Add (one block, well-commented):
@@ -963,8 +965,8 @@ Commit the change.
 - [ ] 🔴 **Add streaming to the Q&A endpoint.** Claude supports server-sent events natively, FastAPI has `StreamingResponse`, and Axios/EventSource handle SSE on the frontend. Watching tokens appear character-by-character is the demo moment that makes a reviewer remember your project. The current setup waits for the entire response then dumps it — feels much slower than it is.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 Add server-sent events (SSE) streaming to the Q&A endpoint.
 Claude supports streaming natively; FastAPI has StreamingResponse.
 
@@ -988,8 +990,8 @@ character in the chat UI. Record a screencap for the README.
 - [ ] 🔴 **Add a real vector-store + RAG flow.** [src/similarity.py:359](src/similarity.py:359) literally contains a comment block titled "ABOUT EMBEDDINGS" that explains the concept but doesn't implement it. Add `langchain-community` + `chromadb` or `faiss-cpu`, embed articles on fetch, do semantic search in `/api/articles/search`. This is the single highest-leverage feature for an AI/Python junior role — it demonstrates you understand the modern RAG stack, not just chat completions.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 Add a real RAG (retrieval-augmented generation) flow using
 embeddings. This is the highest-leverage portfolio feature for an
 AI/Python junior role.
@@ -1018,8 +1020,8 @@ doesn't appear in their summaries.
 - [ ] 🔴 **Make LLM calls concurrent.** [summarize_articles](src/summarizer.py:205), [categorize_articles](src/categorizer.py:218), [tag_articles](src/tagger.py:276), [analyze_sentiments](src/sentiment.py:339) all loop articles sequentially. With `asyncio.gather` + LangChain's async `.ainvoke`, fetching 15 articles drops from ~30s to ~3s. Reviewers love this.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 The four pipeline loops (summarize_articles, categorize_articles,
 tag_articles, analyze_sentiments) call Claude sequentially. With
 async + asyncio.gather, 15 articles drops from ~30s to ~3s.
@@ -1046,8 +1048,8 @@ Pair with the "async-ify backend handlers" task in section 3.
 - [ ] 🟡 Add persistent storage. SQLite via SQLAlchemy is enough — articles, sentiment results, and Q&A history survive restarts. Currently every restart wipes everything (in-memory `app_state`), which makes the app feel like a script.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Opus)
+-----------------------------------
 Add SQLite persistence so articles and Q&A history survive
 backend restart. Currently every restart wipes app_state.
 
@@ -1070,8 +1072,8 @@ restart, GET /api/articles still returns them.
 - [ ] 🟡 Deploy a live demo. Render/Railway/Fly.io can host the FastAPI backend; Vercel/Netlify the React frontend. A clickable URL in the README is worth more than the rest of the documentation combined.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Deploy a live demo and link it in the README. A clickable URL
 beats all other docs combined.
 
@@ -1095,8 +1097,8 @@ single-user.
 - [ ] 🟡 Convert frontend to TypeScript. `vite` ships with a TS template — straightforward port. For an AI/Python role this is a soft signal that you care about typed APIs end-to-end.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Convert the React frontend from JS to TypeScript.
 
 1. In frontend/, install: typescript, @types/react,
@@ -1117,8 +1119,8 @@ runs in npm run dev.
 - [ ] 🟡 The project is at `C:\Users\alonn\Computer-Projects\Github protfolio\...` — "Github protfolio" is misspelled (should be "portfolio"). Rename the parent folder before screenshots/recordings.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 The project lives at C:\Users\alonn\Computer-Projects\Github
 protfolio\... — "protfolio" should be "portfolio". This will show
 up in any screencap.
@@ -1134,8 +1136,8 @@ path. Update any tools/IDE configs that pin the path.
 - [ ] 🟡 No observability — add `logfire` or OpenTelemetry traces around the LangChain calls. Even basic timing logs ("summarize took 2.3s", "categorize took 0.8s") signal you think about latency.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add basic observability. Even simple timing logs ("summarize:
 2.3s") signal you think about latency.
 
@@ -1154,8 +1156,8 @@ logfire/OTel, add the dashboard URL to the README.
 - [ ] 🟢 Repo name `news-summarizer-agent` is fine but the README hero could lead with a one-line value prop and a screenshot/GIF before the feature list. Recruiters skim — make the first screen sell the project.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 README currently leads with a CI badge and a long feature list.
 Recruiters skim — make the first screen sell the project.
 
@@ -1174,8 +1176,8 @@ exists.
 - [ ] 🟢 Consider adding a "How it works" section with a request-flow diagram showing Article → Summarize → Categorize → Tag → Sentiment → store, then user Q&A. The pipeline is the most impressive part of the code; show it visually.
 
 ```
-Prompt for a new chat
----------------------
+Prompt for a new chat (model: Sonnet)
+-------------------------------------
 Add a "How it works" section to README between Features and Quick
 Start. The pipeline is the impressive part of the code — show it
 visually.
