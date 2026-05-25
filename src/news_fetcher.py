@@ -3,6 +3,18 @@
 import logging
 from typing import Optional
 
+
+class NewsAPIError(Exception):
+    """Raised when NewsAPI returns a non-ok response or a network error occurs."""
+
+
+class NewsAPIAuthError(NewsAPIError):
+    """Raised when NewsAPI returns HTTP 401 (invalid or missing API key)."""
+
+
+class NewsAPIRateLimitError(NewsAPIError):
+    """Raised when NewsAPI returns HTTP 429 (rate limit exceeded)."""
+
 import feedparser
 import requests
 from dateutil import parser as date_parser
@@ -135,33 +147,35 @@ def fetch_from_newsapi(
 
     try:
         response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get("status") != "ok":
-            logger.warning("NewsAPI error: %s", data.get("message", "Unknown error"))
-            return []
-
-        articles: list[Article] = []
-        for item in data.get("articles", []):
-            articles.append(
-                Article(
-                    title=item.get("title") or "No title",
-                    description=item.get("description") or item.get("content", "") or "",
-                    url=item.get("url", ""),
-                    source=(item.get("source") or {}).get("name", "Unknown"),
-                    published=parse_date(item.get("publishedAt", "")),
-                    author=item.get("author"),
-                    image_url=item.get("urlToImage"),
-                )
-            )
-
-        logger.info("Found %d articles from NewsAPI", len(articles))
-        return articles
-
     except requests.exceptions.RequestException as e:
-        logger.error("Error fetching from NewsAPI: %s", e)
-        return []
+        raise NewsAPIError(f"Network error fetching from NewsAPI: {e}") from e
+
+    if response.status_code == 401:
+        raise NewsAPIAuthError("NewsAPI returned 401 — check your API key")
+    if response.status_code == 429:
+        raise NewsAPIRateLimitError("NewsAPI returned 429 — rate limit exceeded")
+    response.raise_for_status()
+
+    data = response.json()
+    if data.get("status") != "ok":
+        raise NewsAPIError(f"NewsAPI error: {data.get('message', 'unknown')}")
+
+    articles: list[Article] = []
+    for item in data.get("articles", []):
+        articles.append(
+            Article(
+                title=item.get("title") or "No title",
+                description=item.get("description") or item.get("content", "") or "",
+                url=item.get("url", ""),
+                source=(item.get("source") or {}).get("name", "Unknown"),
+                published=parse_date(item.get("publishedAt", "")),
+                author=item.get("author"),
+                image_url=item.get("urlToImage"),
+            )
+        )
+
+    logger.info("Found %d articles from NewsAPI", len(articles))
+    return articles
 
 
 def fetch_all_newsapi(
@@ -188,12 +202,20 @@ def fetch_all_newsapi(
     logger.info("=" * 50)
 
     for category in categories:
-        articles = fetch_from_newsapi(
-            api_key=api_key,
-            category=category,
-            max_articles=max_per_category,
-        )
-        all_articles.extend(articles)
+        try:
+            articles = fetch_from_newsapi(
+                api_key=api_key,
+                category=category,
+                max_articles=max_per_category,
+            )
+            all_articles.extend(articles)
+        except NewsAPIAuthError:
+            logger.error("NewsAPI auth failed — skipping remaining categories")
+            break
+        except NewsAPIRateLimitError:
+            logger.warning("NewsAPI rate limit hit for category %s — skipping", category)
+        except NewsAPIError as e:
+            logger.warning("NewsAPI error for category %s: %s — skipping", category, e)
 
     logger.info("=" * 50)
     logger.info("TOTAL: %d articles fetched from NewsAPI", len(all_articles))

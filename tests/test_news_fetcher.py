@@ -5,7 +5,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from src.news_fetcher import fetch_from_rss, parse_date
+from src.news_fetcher import (
+    fetch_from_rss,
+    fetch_from_newsapi,
+    fetch_all_newsapi,
+    parse_date,
+    NewsAPIError,
+    NewsAPIAuthError,
+    NewsAPIRateLimitError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -107,3 +115,96 @@ def test_fetch_from_rss_respects_max_articles(mock_get, mock_fp):
     articles = fetch_from_rss("http://example.com/rss.xml", "Source", max_articles=3)
 
     assert len(articles) == 3
+
+
+# ---------------------------------------------------------------------------
+# fetch_from_newsapi — custom exceptions
+# ---------------------------------------------------------------------------
+
+
+def _mock_newsapi_response(status_code=200, json_data=None):
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data or {"status": "ok", "articles": []}
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
+@patch("src.news_fetcher.requests.get")
+def test_fetch_from_newsapi_auth_error_raises(mock_get):
+    mock_get.return_value = _mock_newsapi_response(status_code=401)
+    with pytest.raises(NewsAPIAuthError):
+        fetch_from_newsapi("bad-key", category="technology")
+
+
+@patch("src.news_fetcher.requests.get")
+def test_fetch_from_newsapi_rate_limit_raises(mock_get):
+    mock_get.return_value = _mock_newsapi_response(status_code=429)
+    with pytest.raises(NewsAPIRateLimitError):
+        fetch_from_newsapi("key", category="technology")
+
+
+@patch("src.news_fetcher.requests.get")
+def test_fetch_from_newsapi_network_error_raises(mock_get):
+    mock_get.side_effect = requests.exceptions.ConnectionError("unreachable")
+    with pytest.raises(NewsAPIError):
+        fetch_from_newsapi("key", category="technology")
+
+
+@patch("src.news_fetcher.requests.get")
+def test_fetch_from_newsapi_status_not_ok_raises(mock_get):
+    mock_get.return_value = _mock_newsapi_response(
+        json_data={"status": "error", "message": "apiKeyInvalid"}
+    )
+    with pytest.raises(NewsAPIError):
+        fetch_from_newsapi("key", category="technology")
+
+
+@patch("src.news_fetcher.requests.get")
+def test_fetch_from_newsapi_parses_articles(mock_get):
+    mock_get.return_value = _mock_newsapi_response(
+        json_data={
+            "status": "ok",
+            "articles": [
+                {
+                    "title": "Test headline",
+                    "description": "A description",
+                    "url": "http://example.com/1",
+                    "source": {"name": "TestSource"},
+                    "publishedAt": "2026-01-01T00:00:00Z",
+                    "author": None,
+                    "urlToImage": None,
+                }
+            ],
+        }
+    )
+    articles = fetch_from_newsapi("key", category="general")
+    assert len(articles) == 1
+    assert articles[0].title == "Test headline"
+    assert articles[0].source == "TestSource"
+
+
+# ---------------------------------------------------------------------------
+# fetch_all_newsapi — per-category error handling
+# ---------------------------------------------------------------------------
+
+
+@patch("src.news_fetcher.fetch_from_newsapi")
+def test_fetch_all_newsapi_skips_rate_limit_continues(mock_fetch):
+    mock_fetch.side_effect = [
+        NewsAPIRateLimitError("429"),
+        [MagicMock()],  # second category succeeds
+    ]
+    articles = fetch_all_newsapi(api_key="key", categories=["tech", "science"])
+    assert len(articles) == 1
+
+
+@patch("src.news_fetcher.fetch_from_newsapi")
+def test_fetch_all_newsapi_stops_on_auth_error(mock_fetch):
+    mock_fetch.side_effect = [
+        NewsAPIAuthError("401"),
+        [MagicMock()],  # should never be reached
+    ]
+    articles = fetch_all_newsapi(api_key="key", categories=["tech", "science"])
+    assert articles == []
+    assert mock_fetch.call_count == 1
