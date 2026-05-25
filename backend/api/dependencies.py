@@ -1,22 +1,20 @@
 """Shared dependencies and state management for the API."""
 
+from src.models import Article
 from src.qa_chain import NewsQAChain
 
 
 class AppState:
-    """
-    Application state to store articles and Q&A chain.
-    This allows sharing state across API endpoints.
-    """
+    """In-memory application state shared across all FastAPI route handlers."""
 
     def __init__(self):
-        self.articles: list[dict] = []
+        self.articles: list[Article] = []
         self.qa_chain: NewsQAChain = NewsQAChain()
         self.trends: dict = {}
         self.relationships: dict = {}
 
     def clear(self):
-        """Clear all stored data."""
+        """Reset every field — articles, Q&A history, trend/relationship caches."""
         self.articles = []
         self.qa_chain = NewsQAChain()
         self.trends = {}

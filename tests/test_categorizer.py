@@ -1,4 +1,12 @@
 from src.categorizer import clean_category, parse_multi_category_response, group_by_category
+from src.models import Article
+
+
+def _make_article(**kwargs) -> Article:
+    """Build an Article with the test-required fields and defaults for the rest."""
+    kwargs.setdefault("source", "Test")
+    kwargs.setdefault("url", "")
+    return Article(**kwargs)
 
 
 class TestCleanCategory:
@@ -61,15 +69,15 @@ class TestGroupByCategory:
 
     def test_groups_articles_by_category_correctly(self):
         articles = [
-            {"title": "A1", "category": "Technology"},
-            {"title": "A2", "category": "Business"},
-            {"title": "A3", "category": "Technology"},
+            _make_article(title="A1", category="Technology"),
+            _make_article(title="A2", category="Business"),
+            _make_article(title="A3", category="Technology"),
         ]
         grouped = group_by_category(articles)
         assert len(grouped["Technology"]) == 2
         assert len(grouped["Business"]) == 1
 
     def test_missing_category_falls_back_to_other(self):
-        articles = [{"title": "No category article"}]
+        articles = [_make_article(title="No category article")]
         grouped = group_by_category(articles)
         assert "Other" in grouped

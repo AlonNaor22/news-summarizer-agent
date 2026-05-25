@@ -47,11 +47,25 @@
 #
 # =====================================================
 
+from typing import Any, Union
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
+from src.models import Article
+
+
+# Helpers so similarity functions can accept either Article instances or
+# the older raw-dict shape (the test suite calls these directly with dicts).
+ArticleLike = Union[Article, dict]
+
+
+def _get_field(article: ArticleLike, name: str, default: Any) -> Any:
+    if isinstance(article, dict):
+        return article.get(name, default)
+    return getattr(article, name, default)
 
 
 # =====================================================
@@ -75,56 +89,18 @@ from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRES
 #
 # =====================================================
 
-def calculate_keyword_similarity(article_a: dict, article_b: dict) -> float:
-    """
-    Calculate similarity between two articles based on keyword overlap.
+def calculate_keyword_similarity(article_a: ArticleLike, article_b: ArticleLike) -> float:
+    """Return the Jaccard keyword similarity between two articles (0-1)."""
 
-    PARAMETERS:
-    -----------
-    article_a : dict
-        First article with 'keywords' list
-    article_b : dict
-        Second article with 'keywords' list
+    keywords_a = set(kw.lower() for kw in _get_field(article_a, "keywords", []))
+    keywords_b = set(kw.lower() for kw in _get_field(article_b, "keywords", []))
 
-    RETURNS:
-    --------
-    float
-        Similarity score from 0.0 (nothing in common) to 1.0 (identical)
-
-    EXAMPLE:
-    --------
-    >>> a = {"keywords": ["ai", "tech", "apple"]}
-    >>> b = {"keywords": ["ai", "tech", "google"]}
-    >>> calculate_keyword_similarity(a, b)
-    0.5  # 2 shared out of 4 unique
-
-    THE MATH (Jaccard Similarity):
-    ------------------------------
-    Keywords A: {ai, tech, apple}
-    Keywords B: {ai, tech, google}
-
-    Intersection (A ∩ B): {ai, tech}        → size = 2
-    Union (A ∪ B): {ai, tech, apple, google} → size = 4
-
-    Jaccard = 2 / 4 = 0.5
-    """
-
-    # Get keywords as sets (for set operations)
-    # Sets automatically handle duplicates
-    keywords_a = set(kw.lower() for kw in article_a.get("keywords", []))
-    keywords_b = set(kw.lower() for kw in article_b.get("keywords", []))
-
-    # Handle empty keywords
     if not keywords_a or not keywords_b:
         return 0.0
 
-    # Calculate Jaccard similarity
-    # & is intersection (items in BOTH sets)
-    # | is union (items in EITHER set)
     intersection = keywords_a & keywords_b
     union = keywords_a | keywords_b
 
-    # Avoid division by zero
     if len(union) == 0:
         return 0.0
 
@@ -133,34 +109,19 @@ def calculate_keyword_similarity(article_a: dict, article_b: dict) -> float:
     return round(similarity, 3)
 
 
-def calculate_entity_similarity(article_a: dict, article_b: dict) -> float:
-    """
-    Calculate similarity based on shared entities (people, orgs, locations).
+def calculate_entity_similarity(article_a: ArticleLike, article_b: ArticleLike) -> float:
+    """Return the Jaccard similarity of (people | orgs | locations) between articles."""
 
-    This complements keyword similarity by looking at WHO and WHERE,
-    not just WHAT the article is about.
+    entities_a: set[str] = set()
+    entities_b: set[str] = set()
 
-    EXAMPLE:
-    --------
-    Article A: mentions Tim Cook, Apple, California
-    Article B: mentions Tim Cook, Google, California
-    Shared: Tim Cook, California → 2/4 = 0.5 similarity
-    """
-
-    # Combine all entities from each article
-    entities_a = set()
-    entities_b = set()
-
-    # Add all entity types
     for entity_type in ["people", "organizations", "locations"]:
-        entities_a.update(e.lower() for e in article_a.get(entity_type, []))
-        entities_b.update(e.lower() for e in article_b.get(entity_type, []))
+        entities_a.update(e.lower() for e in _get_field(article_a, entity_type, []))
+        entities_b.update(e.lower() for e in _get_field(article_b, entity_type, []))
 
-    # Handle empty entities
     if not entities_a or not entities_b:
         return 0.0
 
-    # Jaccard similarity
     intersection = entities_a & entities_b
     union = entities_a | entities_b
 
@@ -170,55 +131,30 @@ def calculate_entity_similarity(article_a: dict, article_b: dict) -> float:
     return round(len(intersection) / len(union), 3)
 
 
-def calculate_combined_similarity(article_a: dict, article_b: dict) -> dict:
-    """
-    Calculate overall similarity using multiple factors.
+def calculate_combined_similarity(article_a: ArticleLike, article_b: ArticleLike) -> dict:
+    """Return a weighted combined-similarity dict mixing keywords, entities, and category."""
 
-    WEIGHTED COMBINATION:
-    ---------------------
-    We combine keyword and entity similarity with weights:
-    - Keywords: 60% weight (topic is most important)
-    - Entities: 30% weight (who/where matters)
-    - Category: 10% weight (same category = small boost)
-
-    RETURNS:
-    --------
-    dict with:
-        - overall: Combined similarity score (0-1)
-        - keyword_similarity: Keyword-based score
-        - entity_similarity: Entity-based score
-        - same_category: Whether categories match
-        - shared_keywords: List of shared keywords
-        - shared_entities: List of shared entities
-    """
-
-    # Calculate individual similarities
     keyword_sim = calculate_keyword_similarity(article_a, article_b)
     entity_sim = calculate_entity_similarity(article_a, article_b)
 
-    # Check if same category
-    cat_a = article_a.get("category", "").lower()
-    cat_b = article_b.get("category", "").lower()
+    cat_a = (_get_field(article_a, "category", "") or "").lower()
+    cat_b = (_get_field(article_b, "category", "") or "").lower()
     same_category = cat_a == cat_b and cat_a != ""
 
-    # Weighted combination
-    # Keywords matter most (60%), entities second (30%), category bonus (10%)
     category_bonus = 0.1 if same_category else 0.0
     overall = (keyword_sim * 0.6) + (entity_sim * 0.3) + category_bonus
 
-    # Cap at 1.0
     overall = min(overall, 1.0)
 
-    # Find shared items for display
-    keywords_a = set(kw.lower() for kw in article_a.get("keywords", []))
-    keywords_b = set(kw.lower() for kw in article_b.get("keywords", []))
+    keywords_a = set(kw.lower() for kw in _get_field(article_a, "keywords", []))
+    keywords_b = set(kw.lower() for kw in _get_field(article_b, "keywords", []))
     shared_keywords = list(keywords_a & keywords_b)
 
-    entities_a = set()
-    entities_b = set()
+    entities_a: set[str] = set()
+    entities_b: set[str] = set()
     for entity_type in ["people", "organizations", "locations"]:
-        entities_a.update(article_a.get(entity_type, []))
-        entities_b.update(article_b.get(entity_type, []))
+        entities_a.update(_get_field(article_a, entity_type, []))
+        entities_b.update(_get_field(article_b, entity_type, []))
     shared_entities = list(entities_a & entities_b)
 
     return {
@@ -227,7 +163,7 @@ def calculate_combined_similarity(article_a: dict, article_b: dict) -> dict:
         "entity_similarity": entity_sim,
         "same_category": same_category,
         "shared_keywords": shared_keywords,
-        "shared_entities": shared_entities
+        "shared_entities": shared_entities,
     }
 
 
@@ -236,104 +172,44 @@ def calculate_combined_similarity(article_a: dict, article_b: dict) -> dict:
 # =====================================================
 
 def find_similar_articles(
-    target_article: dict,
-    all_articles: list[dict],
+    target_article: Article,
+    all_articles: list[Article],
     threshold: float = SIMILARITY_THRESHOLDS["find_similar"],
-    max_results: int = 5
-) -> list[dict]:
-    """
-    Find articles similar to a target article.
+    max_results: int = 5,
+) -> list[Article]:
+    """Return up to ``max_results`` articles that exceed ``threshold`` similarity to ``target_article``.
 
-    PARAMETERS:
-    -----------
-    target_article : dict
-        The article to find similar ones for
-    all_articles : list[dict]
-        All available articles to search through
-    threshold : float
-        Minimum similarity score (0-1) to be considered "similar"
-        Default 0.2 = at least 20% similar
-    max_results : int
-        Maximum number of similar articles to return
-
-    RETURNS:
-    --------
-    list[dict]
-        Similar articles, each with added 'similarity' field
-
-    EXAMPLE:
-    --------
-    >>> target = articles[0]  # Article about Apple AI
-    >>> similar = find_similar_articles(target, articles)
-    >>> print(similar[0]["title"])
-    "Google's AI Chatbot..."  # Related AI article
-    >>> print(similar[0]["similarity"]["overall"])
-    0.65  # 65% similar
+    The returned articles are clones of the originals with the ``similarity``
+    field populated.
     """
 
-    results = []
+    results: list[Article] = []
 
     for article in all_articles:
-        # Skip comparing article to itself
-        if article.get("title") == target_article.get("title"):
+        if article.title == target_article.title:
             continue
 
-        # Calculate similarity
         similarity = calculate_combined_similarity(target_article, article)
 
-        # Only include if above threshold
         if similarity["overall"] >= threshold:
-            # Create a copy with similarity data
-            article_with_sim = article.copy()
-            article_with_sim["similarity"] = similarity
+            article_with_sim = article.model_copy()
+            article_with_sim.similarity = similarity
             results.append(article_with_sim)
 
-    # Sort by similarity (highest first)
-    results.sort(key=lambda x: x["similarity"]["overall"], reverse=True)
+    results.sort(key=lambda x: (x.similarity or {}).get("overall", 0), reverse=True)
 
-    # Return top N results
     return results[:max_results]
 
 
 def find_all_related_pairs(
-    articles: list[dict],
-    threshold: float = SIMILARITY_THRESHOLDS["related_pairs"]
+    articles: list[Article],
+    threshold: float = SIMILARITY_THRESHOLDS["related_pairs"],
 ) -> list[dict]:
-    """
-    Find ALL pairs of related articles.
+    """Return every (i,j) pair of articles whose combined similarity is ≥ ``threshold``."""
 
-    This compares every article against every other article
-    and returns pairs that exceed the similarity threshold.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        All articles to compare
-    threshold : float
-        Minimum similarity to be considered related
-
-    RETURNS:
-    --------
-    list[dict]
-        List of related pairs, each with:
-        - article_a: First article (title)
-        - article_b: Second article (title)
-        - similarity: Similarity details
-
-    NOTE ON COMPLEXITY:
-    -------------------
-    This is O(n²) - for n articles, we make n*(n-1)/2 comparisons.
-    - 10 articles = 45 comparisons
-    - 50 articles = 1,225 comparisons
-    - 100 articles = 4,950 comparisons
-
-    For large datasets, consider using embeddings instead!
-    """
-
-    pairs = []
+    pairs: list[dict] = []
     n = len(articles)
 
-    # Compare each pair (avoid duplicates by only comparing i < j)
     for i in range(n):
         for j in range(i + 1, n):
             similarity = calculate_combined_similarity(articles[i], articles[j])
@@ -341,13 +217,12 @@ def find_all_related_pairs(
             if similarity["overall"] >= threshold:
                 pairs.append({
                     "article_a_index": i,
-                    "article_a_title": articles[i].get("title", "Untitled"),
+                    "article_a_title": articles[i].title or "Untitled",
                     "article_b_index": j,
-                    "article_b_title": articles[j].get("title", "Untitled"),
-                    "similarity": similarity
+                    "article_b_title": articles[j].title or "Untitled",
+                    "similarity": similarity,
                 })
 
-    # Sort by similarity
     pairs.sort(key=lambda x: x["similarity"]["overall"], reverse=True)
 
     return pairs
@@ -494,29 +369,25 @@ def create_similarity_chain():
     return _chain
 
 
-def format_articles_for_similarity(articles: list[dict]) -> str:
-    """
-    Format articles for similarity analysis.
-
-    We include enough context for Claude to find connections.
-    """
+def format_articles_for_similarity(articles: list[Article]) -> str:
+    """Render every article into the text block used as the LLM's prompt input."""
     formatted = []
 
     for i, article in enumerate(articles, 1):
         text = f"""ARTICLE {i}:
-Title: {article.get('title', 'Untitled')}
-Category: {article.get('category', 'Unknown')}
-Summary: {article.get('summary', article.get('description', 'No summary'))}
-Keywords: {', '.join(article.get('keywords', [])) or 'None'}
-People: {', '.join(article.get('people', [])) or 'None'}
-Organizations: {', '.join(article.get('organizations', [])) or 'None'}
+Title: {article.title or 'Untitled'}
+Category: {article.category or 'Unknown'}
+Summary: {article.summary or article.description or 'No summary'}
+Keywords: {', '.join(article.keywords) or 'None'}
+People: {', '.join(article.people) or 'None'}
+Organizations: {', '.join(article.organizations) or 'None'}
 """
         formatted.append(text)
 
     return "\n---\n".join(formatted)
 
 
-def parse_similarity_response(response: str, articles: list[dict]) -> list[dict]:
+def parse_similarity_response(response: str, articles: list[Article]) -> list[dict]:
     """
     Parse Claude's similarity analysis into structured data.
 
@@ -571,12 +442,12 @@ def parse_similarity_response(response: str, articles: list[dict]) -> list[dict]
 
                     current_pair = {
                         "article_a_index": idx_a,
-                        "article_a_title": articles[idx_a].get("title", "Unknown") if idx_a < len(articles) else "Unknown",
+                        "article_a_title": articles[idx_a].title if 0 <= idx_a < len(articles) else "Unknown",
                         "article_b_index": idx_b,
-                        "article_b_title": articles[idx_b].get("title", "Unknown") if idx_b < len(articles) else "Unknown",
+                        "article_b_title": articles[idx_b].title if 0 <= idx_b < len(articles) else "Unknown",
                         "relationship": "related",
                         "strength": "medium",
-                        "explanation": ""
+                        "explanation": "",
                     }
             except (ValueError, IndexError):
                 current_pair = None
@@ -601,7 +472,7 @@ def parse_similarity_response(response: str, articles: list[dict]) -> list[dict]
     return pairs
 
 
-def find_related_articles_llm(articles: list[dict]) -> list[dict]:
+def find_related_articles_llm(articles: list[Article]) -> list[dict]:
     """
     Use Claude to find related articles.
 
@@ -660,8 +531,8 @@ def find_related_articles_llm(articles: list[dict]) -> list[dict]:
 # =====================================================
 
 def analyze_article_relationships(
-    articles: list[dict],
-    use_llm: bool = True
+    articles: list[Article],
+    use_llm: bool = True,
 ) -> dict:
     """
     Comprehensive relationship analysis using both approaches.
@@ -711,7 +582,7 @@ def analyze_article_relationships(
     # -------------------------------------------------
     # For each article, list its related articles
     for i, article in enumerate(articles):
-        title = article.get("title", f"Article {i+1}")
+        title = article.title or f"Article {i + 1}"
         connections = []
 
         # From statistical analysis
@@ -759,12 +630,12 @@ def analyze_article_relationships(
 # DISPLAY FUNCTIONS
 # =====================================================
 
-def display_similar_articles(target: dict, similar: list[dict]) -> None:
-    """Display articles similar to a target article."""
+def display_similar_articles(target: Article, similar: list[Article]) -> None:
+    """Print articles similar to ``target`` along with their similarity stats."""
 
     print("\n" + "=" * 60)
     print(f"📰 ARTICLES SIMILAR TO:")
-    print(f"   \"{target.get('title', 'Unknown')[:50]}...\"")
+    print(f"   \"{(target.title or 'Unknown')[:50]}...\"")
     print("=" * 60)
 
     if not similar:
@@ -772,11 +643,11 @@ def display_similar_articles(target: dict, similar: list[dict]) -> None:
         return
 
     for i, article in enumerate(similar, 1):
-        sim = article.get("similarity", {})
+        sim = article.similarity or {}
         score = sim.get("overall", 0)
         score_bar = "█" * int(score * 10)
 
-        print(f"\n  {i}. {article.get('title', 'Untitled')[:50]}...")
+        print(f"\n  {i}. {(article.title or 'Untitled')[:50]}...")
         print(f"     Similarity: {score_bar} {score:.0%}")
 
         if sim.get("shared_keywords"):
@@ -837,53 +708,58 @@ if __name__ == "__main__":
     print("TESTING ARTICLE SIMILARITY")
     print("=" * 60)
 
-    # Test articles with some overlap
     test_articles = [
-        {
-            "title": "Apple Unveils New AI-Powered iPhone Features",
-            "summary": "Apple announced revolutionary AI capabilities including smart assistants and photo editing.",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "smartphones", "apple", "technology"],
-            "people": ["Tim Cook"],
-            "organizations": ["Apple"],
-            "locations": ["California"]
-        },
-        {
-            "title": "Google Responds with AI Chatbot Update",
-            "summary": "Google upgraded its AI assistant to compete with Apple's new features.",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "chatbot", "google", "technology"],
-            "people": ["Sundar Pichai"],
-            "organizations": ["Google"],
-            "locations": ["Mountain View"]
-        },
-        {
-            "title": "Tech Stocks Surge on AI Announcements",
-            "summary": "Technology stocks rallied as investors bet on AI growth from major companies.",
-            "category": "Business",
-            "keywords": ["stocks", "investment", "technology", "artificial intelligence"],
-            "people": [],
-            "organizations": ["Apple", "Google", "NVIDIA"],
-            "locations": ["Wall Street"]
-        },
-        {
-            "title": "Climate Summit Reaches Historic Agreement",
-            "summary": "World leaders agreed to ambitious emission targets at the Paris summit.",
-            "category": "World News",
-            "keywords": ["climate change", "environment", "policy", "international"],
-            "people": ["Emmanuel Macron"],
-            "organizations": ["United Nations"],
-            "locations": ["Paris"]
-        },
-        {
-            "title": "Renewable Energy Investment Breaks Records",
-            "summary": "Global investment in clean energy reached $500 billion this year.",
-            "category": "Business",
-            "keywords": ["climate change", "renewable energy", "investment", "environment"],
-            "people": [],
-            "organizations": [],
-            "locations": []
-        },
+        Article(
+            title="Apple Unveils New AI-Powered iPhone Features",
+            summary="Apple announced revolutionary AI capabilities including smart assistants and photo editing.",
+            category="Technology",
+            keywords=["artificial intelligence", "smartphones", "apple", "technology"],
+            people=["Tim Cook"],
+            organizations=["Apple"],
+            locations=["California"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Google Responds with AI Chatbot Update",
+            summary="Google upgraded its AI assistant to compete with Apple's new features.",
+            category="Technology",
+            keywords=["artificial intelligence", "chatbot", "google", "technology"],
+            people=["Sundar Pichai"],
+            organizations=["Google"],
+            locations=["Mountain View"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Tech Stocks Surge on AI Announcements",
+            summary="Technology stocks rallied as investors bet on AI growth from major companies.",
+            category="Business",
+            keywords=["stocks", "investment", "technology", "artificial intelligence"],
+            organizations=["Apple", "Google", "NVIDIA"],
+            locations=["Wall Street"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Climate Summit Reaches Historic Agreement",
+            summary="World leaders agreed to ambitious emission targets at the Paris summit.",
+            category="World News",
+            keywords=["climate change", "environment", "policy", "international"],
+            people=["Emmanuel Macron"],
+            organizations=["United Nations"],
+            locations=["Paris"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Renewable Energy Investment Breaks Records",
+            summary="Global investment in clean energy reached $500 billion this year.",
+            category="Business",
+            keywords=["climate change", "renewable energy", "investment", "environment"],
+            source="Test",
+            url="",
+        ),
     ]
 
     # -------------------------------------------------

@@ -14,33 +14,7 @@
 
 - [x] 🔴 ~~Stop re-creating the `ChatAnthropic` LLM inside every per-article call~~ — each `src/` module now has a lazy `_chain` singleton (e.g. [summarizer.py:121](src/summarizer.py:121)), so the LLM client is built once per process instead of once per article.
 - [x] 🔴 ~~Remove the duplicated `sys.path.append(...)` hack~~ — added [pyproject.toml](pyproject.toml) (installable with `pip install -e .`) and stripped the path hack from all 9 `src/` files and all 7 `backend/api/` files. The single remaining hack lives in [backend/main.py](backend/main.py) so `uvicorn backend.main:app` keeps working without an install step.
-- [ ] 🔴 Replace the `list[dict]` article representation with a Pydantic `Article` model. Every module accesses fields via `.get("summary", article.get("description", ""))` which is fragile and untyped. Define it once in `src/models.py`.
-
-```
-Prompt for a new chat (model: Opus)
------------------------------------
-Replace the list[dict] article representation with a Pydantic
-Article model. Every src/ module currently accesses fields via
-.get("summary", article.get("description", "")) — fragile and
-untyped.
-
-Create src/models.py with an Article model:
-- Required: title, source, url
-- Optional with defaults: description, summary, published,
-  category, sentiment, sentiment_confidence, sentiment_reason,
-  keywords (list[str]), people (list[str]), organizations
-  (list[str]), locations (list[str]), author, image_url, id
-
-Update src/news_fetcher.py to return list[Article], and update
-every downstream module (summarizer, categorizer, tagger,
-sentiment, trending, similarity, comparator, qa_chain) plus
-backend/api/routes/*.py to accept and return Article instances.
-The FastAPI routes get free JSON serialization.
-
-Constraints: all 40 existing tests must still pass. You'll need
-to update tests/test_categorizer.py and tests/test_similarity.py
-to construct Article objects instead of raw dicts.
-```
+- [x] 🔴 ~~Replace the `list[dict]` article representation with a Pydantic `Article` model~~ — defined once in [src/models.py](src/models.py) (required `title`/`source`/`url` + optional `description`/`summary`/`published`/`category`/`secondary_categories`/`sentiment{,_confidence,_reason}`/`keywords`/`people`/`organizations`/`locations`/`author`/`image_url`/`id`/`similarity`). [news_fetcher.py](src/news_fetcher.py) now returns `list[Article]`, every downstream `src/` module (summarizer, categorizer, tagger, sentiment, trending, similarity, comparator, qa_chain) and all six `backend/api/routes/*.py` files accept and return `Article` instances with FastAPI handling JSON serialization. [cli/state.py](cli/state.py) + [cli/commands.py](cli/commands.py) updated to attribute access; [tests/test_categorizer.py](tests/test_categorizer.py) and [tests/test_similarity.py](tests/test_similarity.py) now construct `Article` objects. All 40 tests pass.
 
 - [x] 🟡 ~~[main.py:1559](main.py:1559) — bare-ish `except Exception as e` in the main loop~~ — now catches `KeyboardInterrupt`, `EOFError`, and `(ValueError, KeyError, IndexError)` explicitly so unexpected exceptions propagate with a real traceback.
 - [ ] 🟡 Replace manual LLM output parsing in [src/sentiment.py:201](src/sentiment.py:201), [src/tagger.py:121](src/tagger.py:121), [src/categorizer.py:283](src/categorizer.py:283), [src/trending.py:325](src/trending.py:325), [src/similarity.py:517](src/similarity.py:517), [src/comparator.py:338](src/comparator.py:338) with structured outputs (LangChain `with_structured_output()` or Anthropic tool-use). The current `line.split(":")` parsing is fragile and breaks silently when Claude varies its format. **This is a major portfolio talking point** — junior candidates almost never know this.

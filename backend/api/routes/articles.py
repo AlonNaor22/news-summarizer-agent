@@ -1,14 +1,16 @@
 """Articles API routes — fetching, processing, and managing news articles."""
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 from typing import Optional
 
-from src.news_fetcher import fetch_news
-from src.summarizer import summarize_articles
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
 from src.categorizer import categorize_articles
-from src.tagger import tag_articles
+from src.models import Article
+from src.news_fetcher import fetch_news
 from src.sentiment import analyze_sentiments
+from src.summarizer import summarize_articles
+from src.tagger import tag_articles
 
 from api.dependencies import get_app_state
 
@@ -22,53 +24,36 @@ class FetchRequest(BaseModel):
     process: bool = True  # Whether to summarize/categorize/tag
 
 
-class ArticleResponse(BaseModel):
-    """Response model for article data."""
-    articles: list[dict]
-    total: int
-
-
 @router.post("/fetch")
 async def fetch_articles(request: FetchRequest):
-    """
-    Fetch and optionally process news articles.
-
-    - **source**: "rss", "newsapi", or "both"
-    - **max_per_source**: Maximum articles per source/category
-    - **process**: If true, summarize, categorize, tag, and analyze sentiment
-    """
+    """Fetch raw articles and (optionally) run the full processing pipeline."""
     try:
-        # Fetch raw articles
         articles = fetch_news(
             source=request.source,
-            max_per_source=request.max_per_source
+            max_per_source=request.max_per_source,
         )
 
         if not articles:
             return {"articles": [], "total": 0, "message": "No articles fetched"}
 
-        # Process articles if requested
         if request.process:
             articles = summarize_articles(articles)
             articles = categorize_articles(articles)
             articles = tag_articles(articles)
             articles = analyze_sentiments(articles)
 
-        # Add unique IDs to articles
         for i, article in enumerate(articles):
-            article["id"] = i
+            article.id = i
 
-        # Store in app state
         state = get_app_state()
         state.articles = articles
 
-        # Load into Q&A chain
         state.qa_chain.load_articles(articles)
 
         return {
             "articles": articles,
             "total": len(articles),
-            "message": f"Successfully fetched and processed {len(articles)} articles"
+            "message": f"Successfully fetched and processed {len(articles)} articles",
         }
 
     except Exception as e:
@@ -82,34 +67,30 @@ async def get_articles(
     source: Optional[str] = Query(None, description="Filter by source"),
     keyword: Optional[str] = Query(None, description="Filter by keyword"),
     limit: int = Query(50, description="Maximum articles to return"),
-    offset: int = Query(0, description="Offset for pagination")
+    offset: int = Query(0, description="Offset for pagination"),
 ):
-    """
-    Get all stored articles with optional filters.
-    """
+    """Return stored articles, applying any of the supported filters."""
     state = get_app_state()
-    articles = state.articles.copy()
+    articles: list[Article] = list(state.articles)
 
-    # Apply filters
     if category:
-        articles = [a for a in articles if a.get("category", "").lower() == category.lower()]
+        articles = [a for a in articles if (a.category or "").lower() == category.lower()]
 
     if sentiment:
-        articles = [a for a in articles if a.get("sentiment", "").lower() == sentiment.lower()]
+        articles = [a for a in articles if (a.sentiment or "").lower() == sentiment.lower()]
 
     if source:
-        articles = [a for a in articles if source.lower() in a.get("source", "").lower()]
+        articles = [a for a in articles if source.lower() in (a.source or "").lower()]
 
     if keyword:
         keyword_lower = keyword.lower()
         articles = [
             a for a in articles
-            if keyword_lower in a.get("title", "").lower()
-            or keyword_lower in a.get("summary", "").lower()
-            or keyword_lower in str(a.get("keywords", [])).lower()
+            if keyword_lower in (a.title or "").lower()
+            or keyword_lower in (a.summary or "").lower()
+            or any(keyword_lower in kw.lower() for kw in a.keywords)
         ]
 
-    # Apply pagination
     total = len(articles)
     articles = articles[offset:offset + limit]
 
@@ -117,7 +98,7 @@ async def get_articles(
         "articles": articles,
         "total": total,
         "limit": limit,
-        "offset": offset
+        "offset": offset,
     }
 
 
@@ -135,11 +116,9 @@ async def get_article(article_id: int):
 @router.get("/articles/search")
 async def search_articles(
     q: str = Query(..., description="Search query"),
-    limit: int = Query(20, description="Maximum results")
+    limit: int = Query(20, description="Maximum results"),
 ):
-    """
-    Search articles by title, summary, or keywords.
-    """
+    """Search articles by title, summary, or keywords."""
     state = get_app_state()
     query_lower = q.lower()
 
@@ -147,16 +126,13 @@ async def search_articles(
     for article in state.articles:
         score = 0
 
-        # Check title
-        if query_lower in article.get("title", "").lower():
+        if query_lower in (article.title or "").lower():
             score += 3
 
-        # Check summary
-        if query_lower in article.get("summary", "").lower():
+        if query_lower in (article.summary or "").lower():
             score += 2
 
-        # Check keywords
-        for kw in article.get("keywords", []):
+        for kw in article.keywords:
             if query_lower in kw.lower():
                 score += 1
                 break
@@ -164,13 +140,12 @@ async def search_articles(
         if score > 0:
             results.append({"article": article, "score": score})
 
-    # Sort by score
     results.sort(key=lambda x: x["score"], reverse=True)
 
     return {
         "results": [r["article"] for r in results[:limit]],
         "total": len(results),
-        "query": q
+        "query": q,
     }
 
 
@@ -185,33 +160,30 @@ async def get_stats():
             "total": 0,
             "by_category": {},
             "by_sentiment": {},
-            "by_source": {}
+            "by_source": {},
         }
 
-    # Count by category
-    by_category = {}
+    by_category: dict[str, int] = {}
     for article in articles:
-        cat = article.get("category", "Other")
+        cat = article.category or "Other"
         by_category[cat] = by_category.get(cat, 0) + 1
 
-    # Count by sentiment
     by_sentiment = {"positive": 0, "negative": 0, "neutral": 0}
     for article in articles:
-        sent = article.get("sentiment", "neutral")
+        sent = article.sentiment or "neutral"
         if sent in by_sentiment:
             by_sentiment[sent] += 1
 
-    # Count by source
-    by_source = {}
+    by_source: dict[str, int] = {}
     for article in articles:
-        src = article.get("source", "Unknown")
+        src = article.source or "Unknown"
         by_source[src] = by_source.get(src, 0) + 1
 
     return {
         "total": len(articles),
         "by_category": by_category,
         "by_sentiment": by_sentiment,
-        "by_source": by_source
+        "by_source": by_source,
     }
 
 

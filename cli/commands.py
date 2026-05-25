@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from dateutil import parser as date_parser
 
+from src.models import Article
 from src.news_fetcher import fetch_news as _fetch_articles
 from src.summarizer import summarize_articles
 from src.categorizer import categorize_articles, group_by_category
@@ -124,25 +125,25 @@ def show_articles(state: AgentState, article_num: int | None = None) -> None:
             stats = _calculate_article_stats(article)
 
             header(f"ARTICLE {article_num}")
-            print(f"\nTitle:    {article['title']}")
-            print(f"Source:   {article['source']}")
-            print(f"Category: {article.get('category', 'Uncategorized')}")
-            print(f"Date:     {article.get('published', 'Unknown')}")
+            print(f"\nTitle:    {article.title}")
+            print(f"Source:   {article.source}")
+            print(f"Category: {article.category or 'Uncategorized'}")
+            print(f"Date:     {article.published or 'Unknown'}")
             print(f"Reading:  {stats['reading_time_display']} ({stats['word_count']} words)")
 
-            sentiment = article.get('sentiment', 'unknown')
+            sentiment = article.sentiment or 'unknown'
             sentiment_emoji = {"positive": "😊", "negative": "😟", "neutral": "😐"}.get(sentiment, "❓")
             print(f"Sentiment: {sentiment_emoji} {sentiment}")
-            if article.get('sentiment_reason'):
-                print(f"          ({article['sentiment_reason']})")
+            if article.sentiment_reason:
+                print(f"          ({article.sentiment_reason})")
 
             print(f"\nSummary:")
-            print(f"  {article.get('summary', 'No summary available')}")
+            print(f"  {article.summary or 'No summary available'}")
 
-            keywords = article.get("keywords", [])
-            people = article.get("people", [])
-            organizations = article.get("organizations", [])
-            locations = article.get("locations", [])
+            keywords = article.keywords
+            people = article.people
+            organizations = article.organizations
+            locations = article.locations
 
             if keywords or people or organizations or locations:
                 print(f"\nTags:")
@@ -155,7 +156,7 @@ def show_articles(state: AgentState, article_num: int | None = None) -> None:
                 if locations:
                     print(f"  📍 Places: {', '.join(locations)}")
 
-            print(f"\nURL: {article.get('url', 'No URL')}")
+            print(f"\nURL: {article.url or 'No URL'}")
             hr("=")
         else:
             print(f"\nInvalid article number. Choose between 1 and {len(state.articles)}")
@@ -164,10 +165,10 @@ def show_articles(state: AgentState, article_num: int | None = None) -> None:
     header(f"ALL ARTICLES ({len(state.articles)} total)")
 
     for i, article in enumerate(state.articles, 1):
-        category = article.get('category', '?')
-        title = article['title'][:50]
+        category = article.category or '?'
+        title = article.title[:50]
         print(f"\n  [{i}] [{category}] {title}...")
-        print(f"      Source: {article['source']}")
+        print(f"      Source: {article.source}")
 
     hr("-", lead_newline=True)
     print("Tip: Type 'show <number>' to see full details")
@@ -187,7 +188,7 @@ def show_category(state: AgentState, category_name: str | None = None) -> None:
         for cat, arts in grouped.items():
             print(f"\n  {cat} ({len(arts)} articles)")
             for art in arts[:2]:
-                print(f"    - {art['title'][:45]}...")
+                print(f"    - {art.title[:45]}...")
             if len(arts) > 2:
                 print(f"    ... and {len(arts) - 2} more")
         hr("-", lead_newline=True)
@@ -210,9 +211,9 @@ def show_category(state: AgentState, category_name: str | None = None) -> None:
     header(f"{matched_category.upper()} ({len(articles_in_cat)} articles)")
 
     for i, article in enumerate(articles_in_cat, 1):
-        print(f"\n  [{i}] {article['title'][:50]}...")
-        print(f"      Source: {article['source']}")
-        summary = article.get('summary', '')[:100]
+        print(f"\n  [{i}] {article.title[:50]}...")
+        print(f"      Source: {article.source}")
+        summary = (article.summary or '')[:100]
         print(f"      {summary}...")
 
 
@@ -276,12 +277,12 @@ def show_tags(state: AgentState, article_num: int | None = None) -> None:
         if 1 <= article_num <= len(state.articles):
             article = state.articles[article_num - 1]
             header(f"TAGS FOR ARTICLE {article_num}")
-            print(f"\n📰 {article['title']}")
+            print(f"\n📰 {article.title}")
 
-            keywords = article.get("keywords", [])
-            people = article.get("people", [])
-            organizations = article.get("organizations", [])
-            locations = article.get("locations", [])
+            keywords = article.keywords
+            people = article.people
+            organizations = article.organizations
+            locations = article.locations
 
             print(f"\n🏷️  Keywords: {', '.join(keywords) if keywords else 'None'}")
             print(f"👤 People: {', '.join(people) if people else 'None'}")
@@ -344,18 +345,18 @@ def search_articles(state: AgentState, query: str) -> None:
         return
 
     query = query.lower().strip()
-    matches = []
+    matches: list[Article] = []
 
     for article in state.articles:
         searchable_parts = [
-            article.get("title", ""),
-            article.get("summary", ""),
-            article.get("description", ""),
-            article.get("category", ""),
-            " ".join(article.get("keywords", [])),
-            " ".join(article.get("people", [])),
-            " ".join(article.get("organizations", [])),
-            " ".join(article.get("locations", [])),
+            article.title or "",
+            article.summary or "",
+            article.description or "",
+            article.category or "",
+            " ".join(article.keywords),
+            " ".join(article.people),
+            " ".join(article.organizations),
+            " ".join(article.locations),
         ]
 
         searchable_text = " ".join(searchable_parts).lower()
@@ -376,24 +377,24 @@ def search_articles(state: AgentState, query: str) -> None:
         original_idx = state.articles.index(article) + 1
 
         match_locations = []
-        if query in article.get("title", "").lower():
+        if query in (article.title or "").lower():
             match_locations.append("title")
-        if query in article.get("summary", "").lower():
+        if query in (article.summary or "").lower():
             match_locations.append("summary")
-        if query in " ".join(article.get("keywords", [])).lower():
+        if query in " ".join(article.keywords).lower():
             match_locations.append("keywords")
-        if query in " ".join(article.get("people", [])).lower():
+        if query in " ".join(article.people).lower():
             match_locations.append("people")
-        if query in " ".join(article.get("organizations", [])).lower():
+        if query in " ".join(article.organizations).lower():
             match_locations.append("organizations")
-        if query in " ".join(article.get("locations", [])).lower():
+        if query in " ".join(article.locations).lower():
             match_locations.append("locations")
 
-        category = article.get('category', '?')
-        title = article['title'][:50]
+        category = article.category or '?'
+        title = article.title[:50]
 
         print(f"  [{original_idx}] [{category}] {title}...")
-        print(f"      Source: {article['source']}")
+        print(f"      Source: {article.source}")
         print(f"      Match in: {', '.join(match_locations)}")
         print()
 
@@ -433,7 +434,7 @@ def _save_as_json(state: AgentState, output_dir: str, timestamp: str) -> None:
             "total_articles": len(state.articles),
             "categories": list(group_by_category(state.articles).keys()),
         },
-        "articles": state.articles,
+        "articles": [a.model_dump() for a in state.articles],
     }
 
     with open(filename, "w", encoding="utf-8") as f:
@@ -479,29 +480,29 @@ def _save_as_markdown(state: AgentState, output_dir: str, timestamp: str) -> Non
         lines.append("")
 
         for i, article in enumerate(articles, 1):
-            lines.append(f"### {i}. {article['title']}")
+            lines.append(f"### {i}. {article.title}")
             lines.append("")
 
-            lines.append(f"**Source:** {article['source']}")
-            if article.get('published'):
+            lines.append(f"**Source:** {article.source}")
+            if article.published:
                 lines.append(f"  ")
-                lines.append(f"**Published:** {article['published']}")
+                lines.append(f"**Published:** {article.published}")
             lines.append("")
 
             lines.append(f"**Summary:**")
             lines.append(f"")
-            lines.append(f"> {article.get('summary', 'No summary available')}")
+            lines.append(f"> {article.summary or 'No summary available'}")
             lines.append("")
 
-            keywords = article.get("keywords", [])
+            keywords = article.keywords
             if keywords:
                 tags_str = " ".join([f"`{kw}`" for kw in keywords])
                 lines.append(f"**Keywords:** {tags_str}")
                 lines.append("")
 
-            people = article.get("people", [])
-            orgs = article.get("organizations", [])
-            locations = article.get("locations", [])
+            people = article.people
+            orgs = article.organizations
+            locations = article.locations
 
             if people or orgs or locations:
                 lines.append("**Entities:**")
@@ -513,8 +514,8 @@ def _save_as_markdown(state: AgentState, output_dir: str, timestamp: str) -> Non
                     lines.append(f"- Locations: {', '.join(locations)}")
                 lines.append("")
 
-            if article.get('url'):
-                lines.append(f"[Read full article]({article['url']})")
+            if article.url:
+                lines.append(f"[Read full article]({article.url})")
                 lines.append("")
 
             lines.append("---")
@@ -536,9 +537,9 @@ def _save_as_markdown(state: AgentState, output_dir: str, timestamp: str) -> Non
     print("  - Notion, Obsidian, etc.")
 
 
-def _calculate_article_stats(article: dict) -> dict:
+def _calculate_article_stats(article: Article) -> dict:
     """Return word count, char count, and human-readable reading time."""
-    text = article.get("summary", article.get("description", ""))
+    text = article.summary or article.description or ""
 
     words = text.split()
     word_count = len(words)
@@ -577,20 +578,16 @@ def show_stats(state: AgentState, article_num: int | None = None) -> None:
             stats = _calculate_article_stats(article)
 
             header(f"STATISTICS FOR ARTICLE {article_num}")
-            print(f"\n📰 {article['title'][:50]}...")
+            print(f"\n📰 {article.title[:50]}...")
             print(f"\n📊 Summary Statistics:")
             print(f"   Words:        {stats['word_count']}")
             print(f"   Characters:   {stats['char_count']}")
             print(f"   Reading time: {stats['reading_time_display']}")
-            print(f"\n📁 Category: {article.get('category', 'Uncategorized')}")
-            print(f"📡 Source:   {article.get('source', 'Unknown')}")
+            print(f"\n📁 Category: {article.category or 'Uncategorized'}")
+            print(f"📡 Source:   {article.source or 'Unknown'}")
 
-            keywords = article.get("keywords", [])
-            entities = (
-                article.get("people", [])
-                + article.get("organizations", [])
-                + article.get("locations", [])
-            )
+            keywords = article.keywords
+            entities = article.people + article.organizations + article.locations
             print(f"\n🏷️  Keywords: {len(keywords)}")
             print(f"👤 Entities: {len(entities)}")
         else:
@@ -610,10 +607,10 @@ def show_stats(state: AgentState, article_num: int | None = None) -> None:
         total_words += stats["word_count"]
         total_chars += stats["char_count"]
         total_reading_seconds += stats["reading_time_seconds"]
-        total_keywords += len(article.get("keywords", []))
-        total_entities += len(article.get("people", []))
-        total_entities += len(article.get("organizations", []))
-        total_entities += len(article.get("locations", []))
+        total_keywords += len(article.keywords)
+        total_entities += len(article.people)
+        total_entities += len(article.organizations)
+        total_entities += len(article.locations)
 
     total_minutes = total_reading_seconds // 60
     remaining_seconds = total_reading_seconds % 60
@@ -642,9 +639,9 @@ def show_stats(state: AgentState, article_num: int | None = None) -> None:
     print(f"   Total entities: {total_entities}")
     print(f"   Avg keywords/article: {total_keywords / len(state.articles):.1f}")
 
-    sources = {}
+    sources: dict[str, int] = {}
     for article in state.articles:
-        source = article.get("source", "Unknown")
+        source = article.source or "Unknown"
         sources[source] = sources.get(source, 0) + 1
 
     print(f"\n📡 SOURCES")
@@ -655,9 +652,9 @@ def show_stats(state: AgentState, article_num: int | None = None) -> None:
     print("Tip: Use 'stats <number>' for individual article stats")
 
 
-def _parse_article_date(article: dict) -> datetime | None:
-    """Parse an article's 'published' field into a ``datetime``, or ``None``."""
-    date_str = article.get("published", "")
+def _parse_article_date(article: Article) -> datetime | None:
+    """Parse an article's ``published`` field into a ``datetime``, or ``None``."""
+    date_str = article.published or ""
 
     if not date_str:
         return None
@@ -698,7 +695,7 @@ def filter_by_date(state: AgentState, date_range: str) -> None:
         print("Valid options: today, yesterday, week, month")
         return
 
-    matches = []
+    matches: list[Article] = []
     no_date_count = 0
 
     for article in state.articles:
@@ -727,13 +724,13 @@ def filter_by_date(state: AgentState, date_range: str) -> None:
 
     for article in matches:
         original_idx = state.articles.index(article) + 1
-        category = article.get('category', '?')
-        title = article['title'][:45]
-        published = article.get('published', 'Unknown date')
+        category = article.category or '?'
+        title = article.title[:45]
+        published = article.published or 'Unknown date'
 
         print(f"  [{original_idx}] [{category}] {title}...")
         print(f"      📅 {published}")
-        print(f"      📡 {article['source']}")
+        print(f"      📡 {article.source}")
         print()
 
     if no_date_count > 0:
@@ -782,8 +779,8 @@ def show_sentiment(state: AgentState, sentiment_filter: str | None = None) -> No
 
         for article in filtered:
             original_idx = state.articles.index(article) + 1
-            title = article['title'][:45]
-            reason = article.get('sentiment_reason', '')[:50]
+            title = article.title[:45]
+            reason = (article.sentiment_reason or '')[:50]
 
             print(f"  [{original_idx}] {title}...")
             print(f"      {reason}")
@@ -885,7 +882,7 @@ def show_comparison(state: AgentState) -> None:
         print("\nNeed at least 2 articles to compare sources.")
         return
 
-    sources = set(art.get("source", "") for art in state.articles)
+    sources = {art.source or "" for art in state.articles}
     if len(sources) < 2:
         print("\nAll articles are from the same source.")
         print("Use 'fetch both' to get articles from multiple sources.")

@@ -23,12 +23,7 @@ class CompareRequest(BaseModel):
 
 @router.get("/comparison/stories")
 async def get_same_story_groups():
-    """
-    Find stories that are covered by multiple sources.
-
-    Returns groups of articles that cover the same event/story,
-    which can then be compared for coverage differences.
-    """
+    """Find groups of articles that cover the same story across different sources."""
     state = get_app_state()
 
     if len(state.articles) < 2:
@@ -38,14 +33,18 @@ async def get_same_story_groups():
 
     result = []
     for story in stories:
+        article_ids = []
+        for art in story["articles"]:
+            try:
+                article_ids.append(state.articles.index(art))
+            except ValueError:
+                article_ids.append(-1)
+
         result.append({
             "story_title": story["story_title"],
             "sources": story["sources"],
             "source_count": story["source_count"],
-            "article_ids": [
-                state.articles.index(art) if art in state.articles else -1
-                for art in story["articles"]
-            ]
+            "article_ids": article_ids,
         })
 
     return {"stories": result, "total": len(result)}
@@ -138,29 +137,26 @@ async def get_bias_analysis():
 
 @router.get("/sources")
 async def get_sources():
-    """
-    Get list of all news sources in the current articles.
-    """
+    """List all distinct news sources in the current article set."""
     state = get_app_state()
 
-    sources = {}
+    sources: dict[str, dict] = {}
     for article in state.articles:
-        source = article.get("source", "Unknown")
+        source = article.source or "Unknown"
         if source not in sources:
             sources[source] = {"count": 0, "categories": set()}
         sources[source]["count"] += 1
-        sources[source]["categories"].add(article.get("category", "Other"))
+        sources[source]["categories"].add(article.category or "Other")
 
     result = [
         {
             "name": name,
             "article_count": data["count"],
-            "categories": list(data["categories"])
+            "categories": list(data["categories"]),
         }
         for name, data in sources.items()
     ]
 
-    # Sort by article count
     result.sort(key=lambda x: x["article_count"], reverse=True)
 
     return {"sources": result, "total": len(result)}

@@ -17,6 +17,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
+from src.models import Article
 
 
 # =====================================================
@@ -159,71 +160,42 @@ def clean_category(raw_category: str) -> str:
     return "Other"
 
 
-def categorize_article(article: dict) -> dict:
-    """
-    Categorize a single article.
-
-    PARAMETERS:
-    -----------
-    article : dict
-        Article with 'title' and 'summary' (or 'description') keys
-
-    RETURNS:
-    --------
-    dict
-        Same article with 'category' key added
-    """
+def categorize_article(article: Article) -> Article:
+    """Set ``article.category`` via Claude and return the article."""
     chain = create_categorize_chain()
 
-    title = article.get("title", "Untitled")
-
-    # Use summary if available, otherwise use description
-    summary = article.get("summary", article.get("description", ""))
+    title = article.title or "Untitled"
+    summary = article.summary or article.description or ""
 
     if not summary:
-        article["category"] = "Other"
+        article.category = "Other"
         return article
 
     print(f"  Categorizing: {title[:40]}...")
 
-    # Create the categories string for the prompt
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
-    # Call the chain
     raw_response = chain.invoke({
         "categories": categories_str,
         "title": title,
-        "summary": summary
+        "summary": summary,
     })
 
-    # Clean up the response
     category = clean_category(raw_response)
-    article["category"] = category
+    article.category = category
 
     print(f"    -> {category}")
 
     return article
 
 
-def categorize_articles(articles: list[dict]) -> list[dict]:
-    """
-    Categorize multiple articles.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        List of articles (should already have summaries)
-
-    RETURNS:
-    --------
-    list[dict]
-        Same articles with 'category' key added to each
-    """
-    print("\n" + "="*50)
+def categorize_articles(articles: list[Article]) -> list[Article]:
+    """Categorize every article, falling back to ``"Other"`` on errors."""
+    print("\n" + "=" * 50)
     print("CATEGORIZING ARTICLES")
-    print("="*50)
+    print("=" * 50)
 
-    categorized = []
+    categorized: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
@@ -234,12 +206,12 @@ def categorize_articles(articles: list[dict]) -> list[dict]:
             categorized.append(categorized_article)
         except Exception as e:
             print(f"  Error: {e}")
-            article["category"] = "Other"
+            article.category = "Other"
             categorized.append(article)
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("CATEGORIZATION COMPLETE")
-    print("="*50)
+    print("=" * 50)
 
     return categorized
 
@@ -324,59 +296,33 @@ def parse_multi_category_response(response: str) -> dict:
     return result
 
 
-def categorize_article_multi(article: dict) -> dict:
-    """
-    Categorize an article with PRIMARY and SECONDARY categories.
-
-    PARAMETERS:
-    -----------
-    article : dict
-        Article with 'title' and 'summary' (or 'description') keys
-
-    RETURNS:
-    --------
-    dict
-        Article with added keys:
-        - 'category': Primary category (string)
-        - 'secondary_categories': List of secondary categories
-
-    EXAMPLE:
-    --------
-    >>> article = {"title": "Apple Stock Surges on iPhone News", ...}
-    >>> result = categorize_article_multi(article)
-    >>> print(result["category"])
-    "Technology"
-    >>> print(result["secondary_categories"])
-    ["Business"]
-    """
+def categorize_article_multi(article: Article) -> Article:
+    """Set ``article.category`` and ``article.secondary_categories`` from Claude."""
     chain = create_multi_categorize_chain()
 
-    title = article.get("title", "Untitled")
-    summary = article.get("summary", article.get("description", ""))
+    title = article.title or "Untitled"
+    summary = article.summary or article.description or ""
 
     if not summary:
-        article["category"] = "Other"
-        article["secondary_categories"] = []
+        article.category = "Other"
+        article.secondary_categories = []
         return article
 
     print(f"  Categorizing: {title[:40]}...")
 
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
-    # Call the chain
     raw_response = chain.invoke({
         "categories": categories_str,
         "title": title,
-        "summary": summary
+        "summary": summary,
     })
 
-    # Parse the response
     parsed = parse_multi_category_response(raw_response)
 
-    article["category"] = parsed["primary"]
-    article["secondary_categories"] = parsed["secondary"]
+    article.category = parsed["primary"]
+    article.secondary_categories = parsed["secondary"]
 
-    # Display result
     secondary_str = ", ".join(parsed["secondary"]) if parsed["secondary"] else "None"
     print(f"    -> Primary: {parsed['primary']}")
     print(f"    -> Secondary: {secondary_str}")
@@ -384,15 +330,13 @@ def categorize_article_multi(article: dict) -> dict:
     return article
 
 
-def categorize_articles_multi(articles: list[dict]) -> list[dict]:
-    """
-    Categorize multiple articles with multi-category support.
-    """
-    print("\n" + "="*50)
+def categorize_articles_multi(articles: list[Article]) -> list[Article]:
+    """Apply multi-category classification to every article."""
+    print("\n" + "=" * 50)
     print("CATEGORIZING ARTICLES (Multi-Category)")
-    print("="*50)
+    print("=" * 50)
 
-    categorized = []
+    categorized: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
@@ -403,66 +347,41 @@ def categorize_articles_multi(articles: list[dict]) -> list[dict]:
             categorized.append(categorized_article)
         except Exception as e:
             print(f"  Error: {e}")
-            article["category"] = "Other"
-            article["secondary_categories"] = []
+            article.category = "Other"
+            article.secondary_categories = []
             categorized.append(article)
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("CATEGORIZATION COMPLETE")
-    print("="*50)
+    print("=" * 50)
 
     return categorized
 
 
-def display_multi_categories(articles: list[dict]) -> None:
-    """
-    Display articles with their primary and secondary categories.
-    """
-    print("\n" + "="*60)
+def display_multi_categories(articles: list[Article]) -> None:
+    """Print articles along with their primary + secondary categories."""
+    print("\n" + "=" * 60)
     print("ARTICLES WITH MULTIPLE CATEGORIES")
-    print("="*60)
+    print("=" * 60)
 
     for article in articles:
-        print(f"\n📰 {article['title'][:50]}...")
-        print(f"   Primary:   {article.get('category', 'Other')}")
+        print(f"\n📰 {article.title[:50]}...")
+        print(f"   Primary:   {article.category or 'Other'}")
 
-        secondary = article.get('secondary_categories', [])
+        secondary = article.secondary_categories
         if secondary:
             print(f"   Secondary: {', '.join(secondary)}")
         else:
             print(f"   Secondary: None")
 
 
-def group_by_category(articles: list[dict]) -> dict[str, list[dict]]:
-    """
-    Group articles by their category.
-
-    This is useful for displaying articles organized by topic.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        List of categorized articles
-
-    RETURNS:
-    --------
-    dict[str, list[dict]]
-        Dictionary where keys are categories and values are lists of articles
-
-    EXAMPLE:
-    --------
-    >>> grouped = group_by_category(articles)
-    >>> print(grouped.keys())
-    dict_keys(['Technology', 'Politics', 'Sports'])
-    >>> print(len(grouped['Technology']))
-    5
-    """
-    grouped = {}
+def group_by_category(articles: list[Article]) -> dict[str, list[Article]]:
+    """Group articles into a ``{category: [articles]}`` dict."""
+    grouped: dict[str, list[Article]] = {}
 
     for article in articles:
-        category = article.get("category", "Other")
+        category = article.category or "Other"
 
-        # Create the list if this is the first article in this category
         if category not in grouped:
             grouped[category] = []
 
@@ -471,23 +390,21 @@ def group_by_category(articles: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
-def display_by_category(articles: list[dict]) -> None:
-    """
-    Display articles grouped by category.
-    """
+def display_by_category(articles: list[Article]) -> None:
+    """Print articles grouped by category."""
     grouped = group_by_category(articles)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ARTICLES BY CATEGORY")
-    print("="*60)
+    print("=" * 60)
 
     for category, category_articles in grouped.items():
         print(f"\n📁 {category.upper()} ({len(category_articles)} articles)")
-        print("-"*40)
+        print("-" * 40)
 
         for article in category_articles:
-            print(f"  • {article['title'][:50]}...")
-            print(f"    Source: {article['source']}")
+            print(f"  • {article.title[:50]}...")
+            print(f"    Source: {article.source}")
 
 
 # =====================================================
@@ -506,21 +423,24 @@ if __name__ == "__main__":
     # to demonstrate multi-category classification
 
     multi_topic_articles = [
-        {
-            "title": "Apple Stock Surges After Revolutionary AI iPhone Announcement",
-            "summary": "Apple's stock price jumped 15% today after the company unveiled an iPhone with groundbreaking AI features. Wall Street analysts predict the technology could reshape the smartphone industry and boost Apple's market cap significantly.",
-            "source": "Tech Business Daily"
-        },
-        {
-            "title": "New Government Policy Aims to Boost Tech Industry with Tax Breaks",
-            "summary": "Congress passed legislation offering tax incentives for technology companies investing in AI research. The bill, supported by both parties, is expected to create thousands of new jobs in the tech sector.",
-            "source": "Political Tech News"
-        },
-        {
-            "title": "Olympic Athlete Uses AI Technology to Break World Record",
-            "summary": "A sprinter broke the 100-meter world record using AI-powered training systems developed by scientists at MIT. The technology analyzes biomechanics to optimize performance.",
-            "source": "Sports Science Weekly"
-        },
+        Article(
+            title="Apple Stock Surges After Revolutionary AI iPhone Announcement",
+            summary="Apple's stock price jumped 15% today after the company unveiled an iPhone with groundbreaking AI features. Wall Street analysts predict the technology could reshape the smartphone industry and boost Apple's market cap significantly.",
+            source="Tech Business Daily",
+            url="",
+        ),
+        Article(
+            title="New Government Policy Aims to Boost Tech Industry with Tax Breaks",
+            summary="Congress passed legislation offering tax incentives for technology companies investing in AI research. The bill, supported by both parties, is expected to create thousands of new jobs in the tech sector.",
+            source="Political Tech News",
+            url="",
+        ),
+        Article(
+            title="Olympic Athlete Uses AI Technology to Break World Record",
+            summary="A sprinter broke the 100-meter world record using AI-powered training systems developed by scientists at MIT. The technology analyzes biomechanics to optimize performance.",
+            source="Sports Science Weekly",
+            url="",
+        ),
     ]
 
     print("\n" + "="*60)
@@ -537,16 +457,18 @@ if __name__ == "__main__":
     # -------------------------------------------------
 
     single_topic_articles = [
-        {
-            "title": "Lakers Win Championship in Overtime Thriller",
-            "summary": "The Los Angeles Lakers defeated the Boston Celtics in a dramatic game 7 overtime victory to claim the NBA championship.",
-            "source": "Sports Weekly"
-        },
-        {
-            "title": "Scientists Discover New Species in Amazon",
-            "summary": "Researchers have identified a previously unknown species of frog in the Amazon rainforest that may have medicinal properties.",
-            "source": "Science Today"
-        },
+        Article(
+            title="Lakers Win Championship in Overtime Thriller",
+            summary="The Los Angeles Lakers defeated the Boston Celtics in a dramatic game 7 overtime victory to claim the NBA championship.",
+            source="Sports Weekly",
+            url="",
+        ),
+        Article(
+            title="Scientists Discover New Species in Amazon",
+            summary="Researchers have identified a previously unknown species of frog in the Amazon rainforest that may have medicinal properties.",
+            source="Science Today",
+            url="",
+        ),
     ]
 
     print("\n\n" + "="*60)
@@ -558,5 +480,5 @@ if __name__ == "__main__":
     single_categorized = categorize_articles(single_topic_articles)
 
     for article in single_categorized:
-        print(f"\n📰 {article['title']}")
-        print(f"   Category: {article['category']}")
+        print(f"\n📰 {article.title}")
+        print(f"   Category: {article.category}")

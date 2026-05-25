@@ -124,15 +124,13 @@ async def get_entities(
 
 @router.get("/trending/keyword/{keyword}")
 async def get_articles_by_keyword(keyword: str):
-    """
-    Get all articles containing a specific keyword.
-    """
+    """Return all articles tagged with the given keyword (case-insensitive)."""
     state = get_app_state()
     keyword_lower = keyword.lower()
 
     matching = []
     for article in state.articles:
-        for kw in article.get("keywords", []):
+        for kw in article.keywords:
             if keyword_lower == kw.lower():
                 matching.append(article)
                 break
@@ -140,5 +138,5 @@ async def get_articles_by_keyword(keyword: str):
     return {
         "keyword": keyword,
         "articles": matching,
-        "total": len(matching)
+        "total": len(matching),
     }

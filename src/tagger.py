@@ -30,6 +30,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from src.models import Article
 
 
 # =====================================================
@@ -191,67 +192,35 @@ def parse_tagging_response(response: str) -> dict:
     return result
 
 
-def tag_article(article: dict) -> dict:
-    """
-    Extract keywords and entities from a single article.
-
-    PARAMETERS:
-    -----------
-    article : dict
-        Article with 'title' and 'summary' (or 'description')
-
-    RETURNS:
-    --------
-    dict
-        Same article with new keys added:
-        - keywords: List of topic keywords
-        - people: List of person names
-        - organizations: List of organization names
-        - locations: List of location names
-
-    EXAMPLE:
-    --------
-    >>> article = {"title": "Apple CEO Tim Cook visits London", ...}
-    >>> tagged = tag_article(article)
-    >>> print(tagged["people"])
-    ["Tim Cook"]
-    >>> print(tagged["organizations"])
-    ["Apple"]
-    >>> print(tagged["locations"])
-    ["London"]
-    """
+def tag_article(article: Article) -> Article:
+    """Populate ``article.keywords``/``.people``/``.organizations``/``.locations``."""
 
     chain = create_tagging_chain()
 
-    title = article.get("title", "Untitled")
-    content = article.get("summary", article.get("description", ""))
+    title = article.title or "Untitled"
+    content = article.summary or article.description or ""
 
     if not content or len(content.strip()) < 30:
-        # Not enough content to extract meaningful tags
-        article["keywords"] = []
-        article["people"] = []
-        article["organizations"] = []
-        article["locations"] = []
+        article.keywords = []
+        article.people = []
+        article.organizations = []
+        article.locations = []
         return article
 
     print(f"  Tagging: {title[:40]}...")
 
-    # Call the chain
     response = chain.invoke({
         "title": title,
-        "content": content
+        "content": content,
     })
 
-    # Parse the response
     tags = parse_tagging_response(response)
 
-    # Add tags to article
-    article["keywords"] = tags["keywords"]
-    article["people"] = tags["people"]
-    article["organizations"] = tags["organizations"]
-    article["locations"] = tags["locations"]
+    article.keywords = tags["keywords"]
+    article.people = tags["people"]
+    article.organizations = tags["organizations"]
+    article.locations = tags["locations"]
 
-    # Display what we found
     if tags["keywords"]:
         print(f"    Keywords: {', '.join(tags['keywords'][:3])}...")
     if tags["people"]:
@@ -260,26 +229,14 @@ def tag_article(article: dict) -> dict:
     return article
 
 
-def tag_articles(articles: list[dict]) -> list[dict]:
-    """
-    Extract keywords and entities from multiple articles.
+def tag_articles(articles: list[Article]) -> list[Article]:
+    """Apply tagging to every article, falling back to empty lists on errors."""
 
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        List of articles (should already have summaries)
-
-    RETURNS:
-    --------
-    list[dict]
-        Same articles with keyword/entity tags added
-    """
-
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("EXTRACTING KEYWORDS & ENTITIES")
-    print("="*50)
+    print("=" * 50)
 
-    tagged = []
+    tagged: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
@@ -290,28 +247,27 @@ def tag_articles(articles: list[dict]) -> list[dict]:
             tagged.append(tagged_article)
         except Exception as e:
             print(f"  Error tagging: {e}")
-            # Add empty tags on error
-            article["keywords"] = []
-            article["people"] = []
-            article["organizations"] = []
-            article["locations"] = []
+            article.keywords = []
+            article.people = []
+            article.organizations = []
+            article.locations = []
             tagged.append(article)
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("TAGGING COMPLETE")
-    print("="*50)
+    print("=" * 50)
 
     return tagged
 
 
-def display_tags(article: dict) -> None:
-    """Display an article's tags in a readable format."""
-    print(f"\n📰 {article.get('title', 'Untitled')[:50]}...")
+def display_tags(article: Article) -> None:
+    """Print an article's tags in a readable format."""
+    print(f"\n📰 {(article.title or 'Untitled')[:50]}...")
 
-    keywords = article.get("keywords", [])
-    people = article.get("people", [])
-    organizations = article.get("organizations", [])
-    locations = article.get("locations", [])
+    keywords = article.keywords
+    people = article.people
+    organizations = article.organizations
+    locations = article.locations
 
     if keywords:
         print(f"   🏷️  Keywords: {', '.join(keywords)}")
@@ -326,66 +282,49 @@ def display_tags(article: dict) -> None:
         print("   (No tags extracted)")
 
 
-def get_all_keywords(articles: list[dict]) -> dict[str, int]:
-    """
-    Get all keywords across articles with frequency counts.
+def get_all_keywords(articles: list[Article] | list[dict]) -> dict[str, int]:
+    """Return a ``{keyword: count}`` dict sorted by frequency (descending).
 
-    This is useful for seeing what topics are trending.
-
-    RETURNS:
-    --------
-    dict[str, int]
-        Dictionary mapping keyword to count, sorted by frequency
-
-    EXAMPLE:
-    --------
-    >>> counts = get_all_keywords(articles)
-    >>> print(counts)
-    {"technology": 5, "ai": 3, "business": 2}
+    Accepts ``dict``-style fallback so that legacy tests calling this with
+    raw dicts continue to work.
     """
 
-    keyword_counts = {}
+    keyword_counts: dict[str, int] = {}
 
     for article in articles:
-        for keyword in article.get("keywords", []):
+        if isinstance(article, dict):
+            keywords = article.get("keywords", [])
+        else:
+            keywords = article.keywords
+
+        for keyword in keywords:
             keyword = keyword.lower()
             keyword_counts[keyword] = keyword_counts.get(keyword, 0) + 1
 
-    # Sort by frequency (highest first)
-    sorted_keywords = dict(
+    return dict(
         sorted(keyword_counts.items(), key=lambda x: x[1], reverse=True)
     )
 
-    return sorted_keywords
 
+def get_all_entities(articles: list[Article]) -> dict:
+    """Return frequency-sorted entity counts grouped by people/orgs/locations."""
 
-def get_all_entities(articles: list[dict]) -> dict:
-    """
-    Get all entities across articles with frequency counts.
-
-    RETURNS:
-    --------
-    dict with keys: people, organizations, locations
-    Each maps entity name to count
-    """
-
-    entities = {
+    entities: dict[str, dict[str, int]] = {
         "people": {},
         "organizations": {},
-        "locations": {}
+        "locations": {},
     }
 
     for article in articles:
-        for person in article.get("people", []):
+        for person in article.people:
             entities["people"][person] = entities["people"].get(person, 0) + 1
 
-        for org in article.get("organizations", []):
+        for org in article.organizations:
             entities["organizations"][org] = entities["organizations"].get(org, 0) + 1
 
-        for loc in article.get("locations", []):
+        for loc in article.locations:
             entities["locations"][loc] = entities["locations"].get(loc, 0) + 1
 
-    # Sort each by frequency
     for key in entities:
         entities[key] = dict(
             sorted(entities[key].items(), key=lambda x: x[1], reverse=True)
@@ -403,24 +342,27 @@ if __name__ == "__main__":
     print("TESTING TAGGER")
     print("="*60)
 
-    # Test articles
     test_articles = [
-        {
-            "title": "Apple CEO Tim Cook Announces New AI Features at WWDC in California",
-            "summary": """Apple's CEO Tim Cook unveiled groundbreaking AI capabilities
+        Article(
+            title="Apple CEO Tim Cook Announces New AI Features at WWDC in California",
+            summary="""Apple's CEO Tim Cook unveiled groundbreaking AI capabilities
             at the Worldwide Developers Conference in Cupertino, California. The new
             features, developed in partnership with OpenAI, will be available on iPhone,
             iPad, and Mac devices. Microsoft and Google are expected to respond with
-            their own announcements at upcoming events in Seattle and New York."""
-        },
-        {
-            "title": "Climate Summit: World Leaders Meet in Paris",
-            "summary": """Representatives from the United Nations gathered in Paris
+            their own announcements at upcoming events in Seattle and New York.""",
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Climate Summit: World Leaders Meet in Paris",
+            summary="""Representatives from the United Nations gathered in Paris
             for an emergency climate summit. French President Emmanuel Macron and
             UN Secretary-General António Guterres called for immediate action on
             reducing carbon emissions. The European Union announced new green energy
-            initiatives."""
-        }
+            initiatives.""",
+            source="Test",
+            url="",
+        ),
     ]
 
     print("\n--- Tagging Articles ---")

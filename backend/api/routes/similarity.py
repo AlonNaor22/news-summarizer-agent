@@ -38,26 +38,37 @@ async def get_similar_articles(
         target,
         state.articles,
         threshold=threshold,
-        max_results=max_results
+        max_results=max_results,
     )
+
+    similar_articles = []
+    for art in similar:
+        # find_similar_articles returns model_copy()'d Articles — they're not
+        # identical to the originals, so look up by title for the ID.
+        try:
+            art_id = next(
+                i for i, original in enumerate(state.articles)
+                if original.title == art.title
+            )
+        except StopIteration:
+            art_id = -1
+
+        similar_articles.append({
+            "id": art_id,
+            "title": art.title,
+            "category": art.category,
+            "source": art.source,
+            "similarity": art.similarity or {},
+        })
 
     return {
         "target": {
             "id": article_id,
-            "title": target.get("title"),
-            "category": target.get("category")
+            "title": target.title,
+            "category": target.category,
         },
-        "similar_articles": [
-            {
-                "id": state.articles.index(art) if art in state.articles else -1,
-                "title": art.get("title"),
-                "category": art.get("category"),
-                "source": art.get("source"),
-                "similarity": art.get("similarity", {})
-            }
-            for art in similar
-        ],
-        "total": len(similar)
+        "similar_articles": similar_articles,
+        "total": len(similar),
     }
 
 
@@ -107,7 +118,6 @@ async def get_related_pairs(
 
     pairs = []
 
-    # Compare all pairs
     for i in range(len(articles)):
         for j in range(i + 1, len(articles)):
             similarity = calculate_combined_similarity(articles[i], articles[j])
@@ -116,21 +126,20 @@ async def get_related_pairs(
                 pairs.append({
                     "article_a": {
                         "id": i,
-                        "title": articles[i].get("title")
+                        "title": articles[i].title,
                     },
                     "article_b": {
                         "id": j,
-                        "title": articles[j].get("title")
+                        "title": articles[j].title,
                     },
-                    "similarity": similarity
+                    "similarity": similarity,
                 })
 
-    # Sort by similarity
     pairs.sort(key=lambda x: x["similarity"]["overall"], reverse=True)
 
     return {
         "pairs": pairs[:limit],
-        "total": len(pairs)
+        "total": len(pairs),
     }
 
 
@@ -155,13 +164,13 @@ async def compare_two_articles(article_id_a: int, article_id_b: int):
     return {
         "article_a": {
             "id": article_id_a,
-            "title": article_a.get("title"),
-            "category": article_a.get("category")
+            "title": article_a.title,
+            "category": article_a.category,
         },
         "article_b": {
             "id": article_id_b,
-            "title": article_b.get("title"),
-            "category": article_b.get("category")
+            "title": article_b.title,
+            "category": article_b.category,
         },
-        "similarity": similarity
+        "similarity": similarity,
     }

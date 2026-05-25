@@ -42,6 +42,7 @@ from langchain_core.output_parsers import StrOutputParser
 from collections import Counter
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from src.models import Article
 
 
 # =====================================================
@@ -64,71 +65,29 @@ from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 #
 # =====================================================
 
-def get_trending_keywords(articles: list[dict], top_n: int = 10) -> list[dict]:
-    """
-    Get trending topics based on keyword frequency.
+def get_trending_keywords(articles: list[Article], top_n: int = 10) -> list[dict]:
+    """Return the top ``top_n`` keywords sorted by frequency across articles."""
 
-    This is the SIMPLE approach - just count keywords.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        Articles with 'keywords' field (from tagger.py)
-    top_n : int
-        Number of top trends to return (default: 10)
-
-    RETURNS:
-    --------
-    list[dict]
-        List of trending topics, each with:
-        - keyword: The trending term
-        - count: How many articles mention it
-        - percentage: What % of articles mention it
-        - articles: List of article titles mentioning it
-
-    EXAMPLE:
-    --------
-    >>> trends = get_trending_keywords(articles, top_n=5)
-    >>> print(trends[0])
-    {
-        "keyword": "artificial intelligence",
-        "count": 8,
-        "percentage": 53.3,
-        "articles": ["AI Breakthrough...", "Tech Giants..."]
-    }
-    """
-
-    # Step 1: Collect all keywords
-    # We use Counter, a special dict for counting things
-    keyword_counter = Counter()
-
-    # Also track which articles mention each keyword
-    keyword_to_articles = {}
+    keyword_counter: Counter = Counter()
+    keyword_to_articles: dict[str, list[str]] = {}
 
     for article in articles:
-        # Get keywords (default to empty list if none)
-        keywords = article.get("keywords", [])
-        title = article.get("title", "Untitled")
+        keywords = article.keywords
+        title = article.title or "Untitled"
 
         for keyword in keywords:
-            # Normalize to lowercase for consistent counting
             keyword = keyword.lower().strip()
 
-            # Count it
             keyword_counter[keyword] += 1
 
-            # Track which article mentioned it
             if keyword not in keyword_to_articles:
                 keyword_to_articles[keyword] = []
             keyword_to_articles[keyword].append(title)
 
-    # Step 2: Get the top N keywords
-    # Counter.most_common(n) returns [(item, count), ...]
     top_keywords = keyword_counter.most_common(top_n)
 
-    # Step 3: Build result with full information
     total_articles = len(articles)
-    trends = []
+    trends: list[dict] = []
 
     for keyword, count in top_keywords:
         percentage = (count / total_articles * 100) if total_articles > 0 else 0
@@ -137,43 +96,31 @@ def get_trending_keywords(articles: list[dict], top_n: int = 10) -> list[dict]:
             "keyword": keyword,
             "count": count,
             "percentage": round(percentage, 1),
-            "articles": keyword_to_articles.get(keyword, [])
+            "articles": keyword_to_articles.get(keyword, []),
         })
 
     return trends
 
 
-def get_trending_entities(articles: list[dict], top_n: int = 5) -> dict:
-    """
-    Get trending people, organizations, and locations.
+def get_trending_entities(articles: list[Article], top_n: int = 5) -> dict:
+    """Return the top ``top_n`` people/orgs/locations across all articles."""
 
-    Similar to get_trending_keywords but for named entities.
-
-    RETURNS:
-    --------
-    dict with keys:
-        - people: Top mentioned people
-        - organizations: Top mentioned orgs
-        - locations: Top mentioned places
-    """
-
-    # Counters for each entity type
-    people_counter = Counter()
-    org_counter = Counter()
-    location_counter = Counter()
+    people_counter: Counter = Counter()
+    org_counter: Counter = Counter()
+    location_counter: Counter = Counter()
 
     for article in articles:
-        for person in article.get("people", []):
+        for person in article.people:
             people_counter[person] += 1
-        for org in article.get("organizations", []):
+        for org in article.organizations:
             org_counter[org] += 1
-        for location in article.get("locations", []):
+        for location in article.locations:
             location_counter[location] += 1
 
     return {
         "people": people_counter.most_common(top_n),
         "organizations": org_counter.most_common(top_n),
-        "locations": location_counter.most_common(top_n)
+        "locations": location_counter.most_common(top_n),
     }
 
 
@@ -273,41 +220,17 @@ def create_trend_chain():
     return _chain
 
 
-def format_articles_for_trend_analysis(articles: list[dict]) -> str:
-    """
-    Format all articles into a single text block for Claude.
-
-    WHY DO THIS?
-    ------------
-    Claude needs to see all articles together to find patterns.
-    We format them consistently so Claude can easily compare them.
-
-    We include:
-    - Title (most important)
-    - Category (helps group related articles)
-    - Summary (the content to analyze)
-    - Keywords (if available, helps Claude see explicit topics)
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        All articles to analyze
-
-    RETURNS:
-    --------
-    str
-        Formatted text block with all articles
-    """
+def format_articles_for_trend_analysis(articles: list[Article]) -> str:
+    """Render every article into a single text block for the LLM prompt."""
 
     formatted_parts = []
 
     for i, article in enumerate(articles, 1):
-        title = article.get("title", "Untitled")
-        category = article.get("category", "Uncategorized")
-        summary = article.get("summary", article.get("description", "No summary"))
-        keywords = article.get("keywords", [])
+        title = article.title or "Untitled"
+        category = article.category or "Uncategorized"
+        summary = article.summary or article.description or "No summary"
+        keywords = article.keywords
 
-        # Format each article
         article_text = f"""--- ARTICLE {i} ---
 TITLE: {title}
 CATEGORY: {category}
@@ -423,7 +346,7 @@ def parse_trend_response(response: str) -> list[dict]:
 # MAIN TREND DETECTION FUNCTION
 # =====================================================
 
-def detect_trends(articles: list[dict], use_llm: bool = True) -> dict:
+def detect_trends(articles: list[Article], use_llm: bool = True) -> dict:
     """
     Detect trending topics across all articles.
 
@@ -601,53 +524,58 @@ if __name__ == "__main__":
     print("TESTING TREND DETECTION")
     print("=" * 60)
 
-    # Test articles with some overlapping themes
     test_articles = [
-        {
-            "title": "Apple Unveils New AI-Powered iPhone Features",
-            "summary": "Apple announced revolutionary AI capabilities in its latest iPhone, including real-time translation and smart photo editing.",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "smartphones", "apple"],
-            "people": ["Tim Cook"],
-            "organizations": ["Apple"],
-            "locations": ["California"]
-        },
-        {
-            "title": "Google's AI Chatbot Gains Million Users",
-            "summary": "Google's new AI assistant has reached one million users within its first week, competing directly with ChatGPT.",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "chatbot", "google"],
-            "people": ["Sundar Pichai"],
-            "organizations": ["Google", "OpenAI"],
-            "locations": ["Silicon Valley"]
-        },
-        {
-            "title": "Tech Stocks Rally on AI Optimism",
-            "summary": "Technology stocks surged today as investors bet on artificial intelligence growth. NVIDIA and Microsoft led gains.",
-            "category": "Business",
-            "keywords": ["artificial intelligence", "stocks", "investment"],
-            "people": [],
-            "organizations": ["NVIDIA", "Microsoft"],
-            "locations": ["Wall Street"]
-        },
-        {
-            "title": "Climate Summit Reaches Historic Agreement",
-            "summary": "World leaders agreed to ambitious emission targets at the Paris climate summit, marking a turning point in environmental policy.",
-            "category": "World News",
-            "keywords": ["climate change", "environment", "policy"],
-            "people": ["Emmanuel Macron"],
-            "organizations": ["United Nations"],
-            "locations": ["Paris"]
-        },
-        {
-            "title": "Renewable Energy Investment Hits Record High",
-            "summary": "Global investment in renewable energy reached $500 billion this year, driven by government incentives and falling costs.",
-            "category": "Business",
-            "keywords": ["climate change", "renewable energy", "investment"],
-            "people": [],
-            "organizations": [],
-            "locations": []
-        },
+        Article(
+            title="Apple Unveils New AI-Powered iPhone Features",
+            summary="Apple announced revolutionary AI capabilities in its latest iPhone, including real-time translation and smart photo editing.",
+            category="Technology",
+            keywords=["artificial intelligence", "smartphones", "apple"],
+            people=["Tim Cook"],
+            organizations=["Apple"],
+            locations=["California"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Google's AI Chatbot Gains Million Users",
+            summary="Google's new AI assistant has reached one million users within its first week, competing directly with ChatGPT.",
+            category="Technology",
+            keywords=["artificial intelligence", "chatbot", "google"],
+            people=["Sundar Pichai"],
+            organizations=["Google", "OpenAI"],
+            locations=["Silicon Valley"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Tech Stocks Rally on AI Optimism",
+            summary="Technology stocks surged today as investors bet on artificial intelligence growth. NVIDIA and Microsoft led gains.",
+            category="Business",
+            keywords=["artificial intelligence", "stocks", "investment"],
+            organizations=["NVIDIA", "Microsoft"],
+            locations=["Wall Street"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Climate Summit Reaches Historic Agreement",
+            summary="World leaders agreed to ambitious emission targets at the Paris climate summit, marking a turning point in environmental policy.",
+            category="World News",
+            keywords=["climate change", "environment", "policy"],
+            people=["Emmanuel Macron"],
+            organizations=["United Nations"],
+            locations=["Paris"],
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Renewable Energy Investment Hits Record High",
+            summary="Global investment in renewable energy reached $500 billion this year, driven by government incentives and falling costs.",
+            category="Business",
+            keywords=["climate change", "renewable energy", "investment"],
+            source="Test",
+            url="",
+        ),
     ]
 
     print(f"\nAnalyzing {len(test_articles)} test articles...")

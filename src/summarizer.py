@@ -17,6 +17,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from src.models import Article
 
 
 # =====================================================
@@ -129,76 +130,38 @@ def create_summary_chain():
 # STEP 4: THE MAIN SUMMARIZE FUNCTION
 # =====================================================
 
-def summarize_article(article: dict) -> dict:
-    """
-    Summarize a single article using Claude.
+def summarize_article(article: Article) -> Article:
+    """Set ``article.summary`` via Claude and return the article."""
 
-    PARAMETERS:
-    -----------
-    article : dict
-        An article dictionary with keys: title, description, url, source
-
-    RETURNS:
-    --------
-    dict
-        The original article with a new "summary" key added
-
-    EXAMPLE:
-    --------
-    >>> article = {"title": "Big News", "description": "Something happened..."}
-    >>> result = summarize_article(article)
-    >>> print(result["summary"])
-    "A significant event occurred today..."
-    """
-
-    # Create the chain
     chain = create_summary_chain()
 
-    # Get the content to summarize
-    # We use description from RSS (or empty string if missing)
-    content = article.get("description", "")
-    title = article.get("title", "Untitled")
+    content = article.description
+    title = article.title or "Untitled"
 
-    # Check if we have content
     if not content or len(content.strip()) < 50:
-        article["summary"] = "Summary unavailable - article content too short."
+        article.summary = "Summary unavailable - article content too short."
         return article
 
     print(f"  Summarizing: {title[:50]}...")
 
-    # Call the chain with our variables
-    # .invoke() runs the chain: fills prompt → sends to Claude → returns string
     summary = chain.invoke({
         "title": title,
-        "content": content
+        "content": content,
     })
 
-    # Add summary to the article
-    article["summary"] = summary
+    article.summary = summary
 
     return article
 
 
-def summarize_articles(articles: list[dict]) -> list[dict]:
-    """
-    Summarize multiple articles.
+def summarize_articles(articles: list[Article]) -> list[Article]:
+    """Summarize every article in ``articles``, returning the same list."""
 
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        List of article dictionaries
-
-    RETURNS:
-    --------
-    list[dict]
-        Same articles with "summary" key added to each
-    """
-
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("SUMMARIZING ARTICLES WITH CLAUDE")
-    print("="*50)
+    print("=" * 50)
 
-    summarized = []
+    summarized: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
@@ -209,28 +172,26 @@ def summarize_articles(articles: list[dict]) -> list[dict]:
             summarized.append(summarized_article)
         except Exception as e:
             print(f"  Error summarizing: {e}")
-            article["summary"] = f"Error: Could not summarize - {str(e)}"
+            article.summary = f"Error: Could not summarize - {str(e)}"
             summarized.append(article)
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print(f"COMPLETED: {len(summarized)} articles summarized")
-    print("="*50)
+    print("=" * 50)
 
     return summarized
 
 
-def display_summary(article: dict) -> None:
-    """
-    Display a summarized article nicely.
-    """
-    print(f"\n{'='*60}")
-    print(f"📰 {article['title']}")
-    print(f"{'='*60}")
-    print(f"Source: {article['source']}")
-    print(f"Published: {article.get('published', 'Unknown')}")
+def display_summary(article: Article) -> None:
+    """Print a summarized article in a readable format."""
+    print(f"\n{'=' * 60}")
+    print(f"📰 {article.title}")
+    print(f"{'=' * 60}")
+    print(f"Source: {article.source}")
+    print(f"Published: {article.published or 'Unknown'}")
     print(f"\n📝 SUMMARY:")
-    print(f"   {article.get('summary', 'No summary available')}")
-    print(f"\n🔗 {article['url']}")
+    print(f"   {article.summary or 'No summary available'}")
+    print(f"\n🔗 {article.url}")
 
 
 # =====================================================
@@ -243,9 +204,9 @@ if __name__ == "__main__":
     print("="*60)
 
     # Test with a sample article
-    test_article = {
-        "title": "Global Leaders Meet to Discuss Climate Action",
-        "description": """
+    test_article = Article(
+        title="Global Leaders Meet to Discuss Climate Action",
+        description="""
         World leaders from over 150 countries gathered in Geneva today
         for an emergency summit on climate change. The meeting, which
         was called after record-breaking temperatures were recorded
@@ -263,14 +224,14 @@ if __name__ == "__main__":
         how costs should be distributed between developed and developing
         nations.
         """,
-        "url": "https://example.com/climate-summit",
-        "source": "Test News",
-        "published": "January 16, 2026"
-    }
+        url="https://example.com/climate-summit",
+        source="Test News",
+        published="January 16, 2026",
+    )
 
     print("\n--- Original Article ---")
-    print(f"Title: {test_article['title']}")
-    print(f"Content length: {len(test_article['description'])} characters")
+    print(f"Title: {test_article.title}")
+    print(f"Content length: {len(test_article.description)} characters")
 
     print("\n--- Calling Claude to Summarize ---")
     result = summarize_article(test_article)

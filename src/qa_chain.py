@@ -22,6 +22,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from src.models import Article
 
 
 # =====================================================
@@ -83,16 +84,9 @@ class NewsQAChain:
     """
 
     def __init__(self):
-        """
-        Initialize the Q&A chain.
-
-        Sets up:
-        - Empty article list
-        - Empty chat history
-        - The LLM connection
-        """
-        self.articles = []           # List of article dictionaries
-        self.chat_history = []       # List of previous messages
+        """Initialize with empty article list, empty history, and a built chain."""
+        self.articles: list[Article] = []
+        self.chat_history: list = []
         self.llm = self._create_llm()
         self.chain = self._create_chain()
 
@@ -114,42 +108,16 @@ class NewsQAChain:
         parser = StrOutputParser()
         return QA_PROMPT | self.llm | parser
 
-    def load_articles(self, articles: list[dict]) -> None:
-        """
-        Load articles into the Q&A system.
-
-        This stores the articles and resets the conversation.
-
-        PARAMETERS:
-        -----------
-        articles : list[dict]
-            List of article dictionaries with keys:
-            title, summary, source, category, etc.
-        """
+    def load_articles(self, articles: list[Article]) -> None:
+        """Store the articles to answer questions over and reset chat history."""
         self.articles = articles
-        self.chat_history = []  # Reset conversation when new articles loaded
+        self.chat_history = []
 
         print(f"\n[OK] Loaded {len(articles)} articles into Q&A system")
         print("  You can now ask questions about these articles!")
 
     def _format_articles_for_context(self) -> str:
-        """
-        Format articles into a string for the AI prompt.
-
-        This creates a readable text block that Claude can reference.
-
-        EXAMPLE OUTPUT:
-        ---------------
-        ARTICLE 1:
-        Title: Apple Announces New iPhone
-        Category: Technology
-        Source: TechCrunch
-        Summary: Apple unveiled its latest iPhone featuring...
-
-        ARTICLE 2:
-        Title: Stock Market Rises
-        ...
-        """
+        """Render the loaded articles into the text block Claude references."""
         if not self.articles:
             return "No articles loaded."
 
@@ -157,10 +125,10 @@ class NewsQAChain:
 
         for i, article in enumerate(self.articles, 1):
             article_text = f"""ARTICLE {i}:
-Title: {article.get('title', 'Untitled')}
-Category: {article.get('category', 'Uncategorized')}
-Source: {article.get('source', 'Unknown')}
-Summary: {article.get('summary', article.get('description', 'No summary available'))}
+Title: {article.title or 'Untitled'}
+Category: {article.category or 'Uncategorized'}
+Source: {article.source or 'Unknown'}
+Summary: {article.summary or article.description or 'No summary available'}
 """
             formatted.append(article_text)
 
@@ -251,7 +219,7 @@ Summary: {article.get('summary', article.get('description', 'No summary availabl
 # =====================================================
 # For simple use cases where you don't need a class
 
-def quick_qa(articles: list[dict], question: str) -> str:
+def quick_qa(articles: list[Article], question: str) -> str:
     """
     Quick one-off question (no memory).
 
@@ -283,26 +251,28 @@ if __name__ == "__main__":
     print("TESTING Q&A CHAIN WITH MEMORY")
     print("="*60)
 
-    # Sample articles (normally these come from news_fetcher + summarizer)
     test_articles = [
-        {
-            "title": "Apple Unveils Revolutionary AI-Powered iPhone",
-            "summary": "Apple announced its latest iPhone featuring advanced AI capabilities including real-time language translation, intelligent photo editing, and a new Siri powered by large language models. The device also boasts improved battery life of up to 30 hours and a new titanium design.",
-            "category": "Technology",
-            "source": "TechCrunch"
-        },
-        {
-            "title": "Federal Reserve Holds Interest Rates Steady",
-            "summary": "The Federal Reserve decided to maintain current interest rates at 5.25%, citing mixed economic signals. Chair Powell indicated that future decisions would depend on inflation data over the coming months. Markets responded positively to the news.",
-            "category": "Business",
-            "source": "Reuters"
-        },
-        {
-            "title": "Scientists Discover New Treatment for Alzheimer's",
-            "summary": "Researchers at MIT have developed a promising new drug that shows significant improvement in Alzheimer's patients during clinical trials. The treatment targets protein buildup in the brain and showed 35% slower cognitive decline compared to placebo groups.",
-            "category": "Health",
-            "source": "Science Daily"
-        }
+        Article(
+            title="Apple Unveils Revolutionary AI-Powered iPhone",
+            summary="Apple announced its latest iPhone featuring advanced AI capabilities including real-time language translation, intelligent photo editing, and a new Siri powered by large language models. The device also boasts improved battery life of up to 30 hours and a new titanium design.",
+            category="Technology",
+            source="TechCrunch",
+            url="",
+        ),
+        Article(
+            title="Federal Reserve Holds Interest Rates Steady",
+            summary="The Federal Reserve decided to maintain current interest rates at 5.25%, citing mixed economic signals. Chair Powell indicated that future decisions would depend on inflation data over the coming months. Markets responded positively to the news.",
+            category="Business",
+            source="Reuters",
+            url="",
+        ),
+        Article(
+            title="Scientists Discover New Treatment for Alzheimer's",
+            summary="Researchers at MIT have developed a promising new drug that shows significant improvement in Alzheimer's patients during clinical trials. The treatment targets protein buildup in the brain and showed 35% slower cognitive decline compared to placebo groups.",
+            category="Health",
+            source="Science Daily",
+            url="",
+        ),
     ]
 
     # Create Q&A system and load articles

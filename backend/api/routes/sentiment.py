@@ -62,20 +62,18 @@ async def get_articles_by_sentiment(
 
 @router.get("/sentiment/distribution/by-category")
 async def get_sentiment_by_category():
-    """
-    Get sentiment distribution broken down by category.
-    """
+    """Sentiment distribution broken down by article category."""
     state = get_app_state()
     articles = state.articles
 
     if not articles:
         return {"distribution": {}}
 
-    distribution = {}
+    distribution: dict[str, dict[str, int]] = {}
 
     for article in articles:
-        category = article.get("category", "Other")
-        sentiment = article.get("sentiment", "neutral")
+        category = article.category or "Other"
+        sentiment = article.sentiment or "neutral"
 
         if category not in distribution:
             distribution[category] = {"positive": 0, "negative": 0, "neutral": 0}
@@ -88,20 +86,18 @@ async def get_sentiment_by_category():
 
 @router.get("/sentiment/distribution/by-source")
 async def get_sentiment_by_source():
-    """
-    Get sentiment distribution broken down by source.
-    """
+    """Sentiment distribution broken down by news source."""
     state = get_app_state()
     articles = state.articles
 
     if not articles:
         return {"distribution": {}}
 
-    distribution = {}
+    distribution: dict[str, dict[str, int]] = {}
 
     for article in articles:
-        source = article.get("source", "Unknown")
-        sentiment = article.get("sentiment", "neutral")
+        source = article.source or "Unknown"
+        sentiment = article.sentiment or "neutral"
 
         if source not in distribution:
             distribution[source] = {"positive": 0, "negative": 0, "neutral": 0}

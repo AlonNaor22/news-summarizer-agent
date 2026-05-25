@@ -43,6 +43,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
+from src.models import Article
 from src.similarity import calculate_combined_similarity
 
 
@@ -63,81 +64,37 @@ from src.similarity import calculate_combined_similarity
 # =====================================================
 
 def group_articles_by_story(
-    articles: list[dict],
-    similarity_threshold: float = SIMILARITY_THRESHOLDS["same_story"]
-) -> list[list[dict]]:
-    """
-    Group articles that cover the same story/event.
-
-    ALGORITHM:
-    ----------
-    1. Compare all article pairs
-    2. If similarity > threshold, they might be same story
-    3. Build clusters of related articles
-    4. Return groups with 2+ articles (can compare)
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        All articles to analyze
-    similarity_threshold : float
-        Minimum similarity to consider "same story"
-        Default 0.4 = 40% overlap needed
-
-    RETURNS:
-    --------
-    list[list[dict]]
-        Groups of articles covering the same story
-        Each group has 2+ articles from different sources
-
-    EXAMPLE:
-    --------
-    >>> groups = group_articles_by_story(articles)
-    >>> print(len(groups))
-    3  # Found 3 different stories covered by multiple sources
-    >>> print(len(groups[0]))
-    2  # First story covered by 2 different sources
-    """
+    articles: list[Article],
+    similarity_threshold: float = SIMILARITY_THRESHOLDS["same_story"],
+) -> list[list[Article]]:
+    """Cluster articles into groups (size ≥ 2) covering the same story."""
 
     n = len(articles)
     if n < 2:
         return []
 
-    # Track which articles have been assigned to a group
-    assigned = set()
-
-    # Build groups
-    groups = []
+    assigned: set[int] = set()
+    groups: list[list[Article]] = []
 
     for i in range(n):
         if i in assigned:
             continue
 
-        # Start a new potential group with this article
-        group = [articles[i]]
+        group: list[Article] = [articles[i]]
         assigned.add(i)
 
-        # Find other articles that cover the same story
         for j in range(i + 1, n):
             if j in assigned:
                 continue
 
-            # Check if same story (high similarity + different source)
             similarity = calculate_combined_similarity(articles[i], articles[j])
 
-            # Must be similar enough
             if similarity["overall"] < similarity_threshold:
                 continue
 
-            # Prefer different sources (that's the point of comparison!)
-            source_i = articles[i].get("source", "").lower()
-            source_j = articles[j].get("source", "").lower()
-
-            # Add to group
             group.append(articles[j])
             assigned.add(j)
 
-        # Only keep groups with 2+ articles (need multiple to compare)
         if len(group) >= 2:
             groups.append(group)
 
@@ -145,48 +102,29 @@ def group_articles_by_story(
 
 
 def find_same_story_articles(
-    articles: list[dict],
-    min_group_size: int = 2
+    articles: list[Article],
+    min_group_size: int = 2,
 ) -> list[dict]:
-    """
-    Find stories covered by multiple sources.
-
-    This is a higher-level function that returns structured
-    information about each story group.
-
-    RETURNS:
-    --------
-    list[dict]
-        Each dict contains:
-        - story_title: A descriptive title for the story
-        - articles: List of articles covering this story
-        - sources: List of sources covering this story
-        - source_count: Number of different sources
-    """
+    """Return structured groups of multi-source coverage of the same story."""
 
     groups = group_articles_by_story(articles)
 
-    stories = []
+    stories: list[dict] = []
 
     for group in groups:
         if len(group) < min_group_size:
             continue
 
-        # Use the first article's title as the story title
-        # (In production, you might use LLM to generate a neutral title)
-        story_title = group[0].get("title", "Unknown Story")
-
-        # Get unique sources
-        sources = list(set(art.get("source", "Unknown") for art in group))
+        story_title = group[0].title or "Unknown Story"
+        sources = list({art.source or "Unknown" for art in group})
 
         stories.append({
             "story_title": story_title,
             "articles": group,
             "sources": sources,
-            "source_count": len(sources)
+            "source_count": len(sources),
         })
 
-    # Sort by number of sources (more sources = more interesting)
     stories.sort(key=lambda x: x["source_count"], reverse=True)
 
     return stories
@@ -309,20 +247,16 @@ def create_comparison_chain():
     return _chain
 
 
-def format_articles_for_comparison(articles: list[dict]) -> str:
-    """
-    Format articles for comparison analysis.
-
-    We include full details since we're doing deep comparison.
-    """
+def format_articles_for_comparison(articles: list[Article]) -> str:
+    """Render every article for the source-comparison prompt."""
     formatted = []
 
     for i, article in enumerate(articles, 1):
-        source = article.get("source", "Unknown Source")
-        title = article.get("title", "Untitled")
-        summary = article.get("summary", article.get("description", "No content"))
-        sentiment = article.get("sentiment", "unknown")
-        keywords = article.get("keywords", [])
+        source = article.source or "Unknown Source"
+        title = article.title or "Untitled"
+        summary = article.summary or article.description or "No content"
+        sentiment = article.sentiment or "unknown"
+        keywords = article.keywords
 
         text = f"""--- SOURCE {i}: {source} ---
 TITLE: {title}
@@ -335,7 +269,7 @@ KEYWORDS: {', '.join(keywords) if keywords else 'None'}
     return "\n".join(formatted)
 
 
-def parse_comparison_response(response: str, articles: list[dict]) -> dict:
+def parse_comparison_response(response: str, articles: list[Article]) -> dict:
     """
     Parse Claude's comparison analysis into structured data.
 
@@ -448,29 +382,8 @@ def parse_comparison_response(response: str, articles: list[dict]) -> dict:
 # MAIN COMPARISON FUNCTION
 # =====================================================
 
-def compare_sources(articles: list[dict]) -> dict:
-    """
-    Compare how different sources cover the same story.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        Articles covering the SAME story (2+ articles)
-
-    RETURNS:
-    --------
-    dict with detailed comparison analysis
-
-    EXAMPLE:
-    --------
-    >>> # Articles about same event from BBC, CNN, Fox
-    >>> comparison = compare_sources([bbc_article, cnn_article, fox_article])
-    >>> print(comparison["story_summary"])
-    "World leaders met in Paris for climate summit..."
-    >>> print(comparison["key_differences"])
-    ["BBC emphasizes international cooperation",
-     "Fox focuses on economic costs"]
-    """
+def compare_sources(articles: list[Article]) -> dict:
+    """Run a deep comparison of how each source covered the same story."""
 
     if len(articles) < 2:
         return {
@@ -479,11 +392,10 @@ def compare_sources(articles: list[dict]) -> dict:
             "common_facts": [],
             "source_analyses": {},
             "key_differences": [],
-            "overall_assessment": ""
+            "overall_assessment": "",
         }
 
-    # Get sources for display
-    sources = [art.get("source", "Unknown") for art in articles]
+    sources = [art.source or "Unknown" for art in articles]
     print(f"\n🔍 Comparing coverage from: {', '.join(sources)}")
 
     chain = create_comparison_chain()
@@ -507,7 +419,7 @@ def compare_sources(articles: list[dict]) -> dict:
     return result
 
 
-def compare_all_stories(articles: list[dict]) -> list[dict]:
+def compare_all_stories(articles: list[Article]) -> list[dict]:
     """
     Find all multi-source stories and compare them.
 
@@ -572,25 +484,8 @@ def compare_all_stories(articles: list[dict]) -> list[dict]:
 #
 # =====================================================
 
-def quick_compare(article_a: dict, article_b: dict) -> dict:
-    """
-    Quickly compare two specific articles.
-
-    Use this when you already know which articles to compare,
-    rather than auto-detecting same-story groups.
-
-    PARAMETERS:
-    -----------
-    article_a : dict
-        First article
-    article_b : dict
-        Second article
-
-    RETURNS:
-    --------
-    dict
-        Comparison analysis
-    """
+def quick_compare(article_a: Article, article_b: Article) -> dict:
+    """Compare two specific articles directly without group detection."""
     return compare_sources([article_a, article_b])
 
 
@@ -738,80 +633,77 @@ if __name__ == "__main__":
     print("TESTING MULTI-SOURCE COMPARATOR")
     print("=" * 60)
 
-    # Test articles: Same story from different sources
-    # These simulate how different outlets might cover the same event
     test_articles = [
-        {
-            "title": "Tech Giants Announce Major AI Partnership",
-            "summary": """Apple, Google, and Microsoft announced a historic partnership
+        Article(
+            title="Tech Giants Announce Major AI Partnership",
+            summary="""Apple, Google, and Microsoft announced a historic partnership
             to develop AI safety standards. The collaboration, first of its kind,
             aims to ensure responsible AI development. Industry experts praised
             the move as a significant step forward for technology governance.
             The companies will share research and establish common guidelines.""",
-            "source": "TechCrunch",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "partnership", "technology", "safety"],
-            "people": [],
-            "organizations": ["Apple", "Google", "Microsoft"],
-            "sentiment": "positive"
-        },
-        {
-            "title": "Big Tech Forms AI Alliance Amid Regulatory Pressure",
-            "summary": """Facing increasing regulatory scrutiny, Apple, Google, and
+            source="TechCrunch",
+            category="Technology",
+            keywords=["artificial intelligence", "partnership", "technology", "safety"],
+            organizations=["Apple", "Google", "Microsoft"],
+            sentiment="positive",
+            url="",
+        ),
+        Article(
+            title="Big Tech Forms AI Alliance Amid Regulatory Pressure",
+            summary="""Facing increasing regulatory scrutiny, Apple, Google, and
             Microsoft have formed an alliance on AI development. Critics suggest
             the partnership may be an attempt to preempt government regulation.
             The announcement comes as Congress considers new AI oversight laws.
             Consumer advocates expressed concerns about industry self-regulation.""",
-            "source": "The Guardian",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "regulation", "technology", "government"],
-            "people": [],
-            "organizations": ["Apple", "Google", "Microsoft", "Congress"],
-            "sentiment": "neutral"
-        },
-        {
-            "title": "Apple, Google, Microsoft Unite on AI Standards",
-            "summary": """Three major technology companies announced a joint initiative
+            source="The Guardian",
+            category="Technology",
+            keywords=["artificial intelligence", "regulation", "technology", "government"],
+            organizations=["Apple", "Google", "Microsoft", "Congress"],
+            sentiment="neutral",
+            url="",
+        ),
+        Article(
+            title="Apple, Google, Microsoft Unite on AI Standards",
+            summary="""Three major technology companies announced a joint initiative
             on AI safety standards today. The partnership will focus on developing
             guidelines for responsible AI deployment. Representatives from each
             company will form a working group to draft initial recommendations.
             The initiative is expected to produce its first report within six months.""",
-            "source": "Reuters",
-            "category": "Technology",
-            "keywords": ["artificial intelligence", "standards", "technology"],
-            "people": [],
-            "organizations": ["Apple", "Google", "Microsoft"],
-            "sentiment": "neutral"
-        },
-        {
-            "title": "Climate Summit Yields Historic Agreement",
-            "summary": """World leaders reached a landmark climate agreement in Paris,
+            source="Reuters",
+            category="Technology",
+            keywords=["artificial intelligence", "standards", "technology"],
+            organizations=["Apple", "Google", "Microsoft"],
+            sentiment="neutral",
+            url="",
+        ),
+        Article(
+            title="Climate Summit Yields Historic Agreement",
+            summary="""World leaders reached a landmark climate agreement in Paris,
             committing to aggressive emission reduction targets. The deal includes
             $100 billion in funding for developing nations. Environmental groups
             celebrated the agreement as a turning point in climate action.""",
-            "source": "BBC News",
-            "category": "World News",
-            "keywords": ["climate change", "environment", "international", "policy"],
-            "people": [],
-            "organizations": ["United Nations"],
-            "locations": ["Paris"],
-            "sentiment": "positive"
-        },
-        {
-            "title": "Climate Deal Raises Economic Concerns",
-            "summary": """The Paris climate agreement announced today has drawn mixed
+            source="BBC News",
+            category="World News",
+            keywords=["climate change", "environment", "international", "policy"],
+            organizations=["United Nations"],
+            locations=["Paris"],
+            sentiment="positive",
+            url="",
+        ),
+        Article(
+            title="Climate Deal Raises Economic Concerns",
+            summary="""The Paris climate agreement announced today has drawn mixed
             reactions. While environmental groups applauded the targets, business
             leaders warned of potential economic impacts. Some industries face
             significant compliance costs under the new framework. Critics argue
             the agreement may hurt American competitiveness.""",
-            "source": "Fox Business",
-            "category": "World News",
-            "keywords": ["climate change", "economy", "business", "policy"],
-            "people": [],
-            "organizations": [],
-            "locations": ["Paris"],
-            "sentiment": "negative"
-        },
+            source="Fox Business",
+            category="World News",
+            keywords=["climate change", "economy", "business", "policy"],
+            locations=["Paris"],
+            sentiment="negative",
+            url="",
+        ),
     ]
 
     # -------------------------------------------------

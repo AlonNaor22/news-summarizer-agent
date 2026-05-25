@@ -31,6 +31,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from src.models import Article
 
 
 # =====================================================
@@ -247,66 +248,37 @@ def parse_sentiment_response(response: str) -> dict:
 # ANALYZE SINGLE ARTICLE
 # =====================================================
 
-def analyze_sentiment(article: dict) -> dict:
-    """
-    Analyze sentiment of a single article.
-
-    PARAMETERS:
-    -----------
-    article : dict
-        Article with 'title' and 'summary' (or 'description')
-
-    RETURNS:
-    --------
-    dict
-        Same article with new keys added:
-        - sentiment: "positive", "negative", or "neutral"
-        - sentiment_confidence: "high", "medium", or "low"
-        - sentiment_reason: explanation string
-
-    EXAMPLE:
-    --------
-    >>> article = {"title": "Earthquake hits city", "summary": "..."}
-    >>> result = analyze_sentiment(article)
-    >>> print(result["sentiment"])
-    "negative"
-    >>> print(result["sentiment_reason"])
-    "The article describes a natural disaster"
-    """
+def analyze_sentiment(article: Article) -> Article:
+    """Populate ``article.sentiment``, ``.sentiment_confidence``, ``.sentiment_reason``."""
 
     chain = create_sentiment_chain()
 
-    title = article.get("title", "Untitled")
-    content = article.get("summary", article.get("description", ""))
+    title = article.title or "Untitled"
+    content = article.summary or article.description or ""
 
-    # Skip if no content
     if not content or len(content.strip()) < 30:
-        article["sentiment"] = "neutral"
-        article["sentiment_confidence"] = "low"
-        article["sentiment_reason"] = "Insufficient content for analysis"
+        article.sentiment = "neutral"
+        article.sentiment_confidence = "low"
+        article.sentiment_reason = "Insufficient content for analysis"
         return article
 
     print(f"  Analyzing sentiment: {title[:40]}...")
 
-    # Call the chain
     response = chain.invoke({
         "title": title,
-        "content": content
+        "content": content,
     })
 
-    # Parse the response
     parsed = parse_sentiment_response(response)
 
-    # Add to article
-    article["sentiment"] = parsed["sentiment"]
-    article["sentiment_confidence"] = parsed["confidence"]
-    article["sentiment_reason"] = parsed["reason"]
+    article.sentiment = parsed["sentiment"]
+    article.sentiment_confidence = parsed["confidence"]
+    article.sentiment_reason = parsed["reason"]
 
-    # Display result with indicator
     indicator = {
         "positive": "[+]",
         "negative": "[-]",
-        "neutral": "[=]"
+        "neutral": "[=]",
     }.get(parsed["sentiment"], "[=]")
 
     print(f"    -> {indicator} {parsed['sentiment']} ({parsed['confidence']} confidence)")
@@ -318,26 +290,14 @@ def analyze_sentiment(article: dict) -> dict:
 # ANALYZE MULTIPLE ARTICLES
 # =====================================================
 
-def analyze_sentiments(articles: list[dict]) -> list[dict]:
-    """
-    Analyze sentiment for multiple articles.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        List of articles (should already have summaries)
-
-    RETURNS:
-    --------
-    list[dict]
-        Same articles with sentiment fields added
-    """
+def analyze_sentiments(articles: list[Article]) -> list[Article]:
+    """Run sentiment analysis on every article, defaulting to neutral on error."""
 
     print("\n" + "=" * 50)
     print("ANALYZING ARTICLE SENTIMENTS")
     print("=" * 50)
 
-    analyzed = []
+    analyzed: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
@@ -348,9 +308,9 @@ def analyze_sentiments(articles: list[dict]) -> list[dict]:
             analyzed.append(analyzed_article)
         except Exception as e:
             print(f"  Error: {e}")
-            article["sentiment"] = "neutral"
-            article["sentiment_confidence"] = "low"
-            article["sentiment_reason"] = f"Error during analysis: {str(e)}"
+            article.sentiment = "neutral"
+            article.sentiment_confidence = "low"
+            article.sentiment_reason = f"Error during analysis: {str(e)}"
             analyzed.append(article)
 
     print("\n" + "=" * 50)
@@ -364,40 +324,17 @@ def analyze_sentiments(articles: list[dict]) -> list[dict]:
 # HELPER FUNCTIONS
 # =====================================================
 
-def get_sentiment_summary(articles: list[dict]) -> dict:
-    """
-    Get summary statistics of sentiments across articles.
-
-    RETURNS:
-    --------
-    dict with keys:
-        - positive: count of positive articles
-        - negative: count of negative articles
-        - neutral: count of neutral articles
-        - total: total articles
-        - breakdown: percentage breakdown
-
-    EXAMPLE:
-    --------
-    >>> summary = get_sentiment_summary(articles)
-    >>> print(summary)
-    {
-        "positive": 5,
-        "negative": 3,
-        "neutral": 7,
-        "total": 15,
-        "breakdown": {"positive": 33.3, "negative": 20.0, "neutral": 46.7}
-    }
-    """
+def get_sentiment_summary(articles: list[Article]) -> dict:
+    """Return per-sentiment counts and a percentage breakdown."""
 
     counts = {
         "positive": 0,
         "negative": 0,
-        "neutral": 0
+        "neutral": 0,
     }
 
     for article in articles:
-        sentiment = article.get("sentiment", "neutral")
+        sentiment = article.sentiment or "neutral"
         if sentiment in counts:
             counts[sentiment] += 1
         else:
@@ -405,7 +342,6 @@ def get_sentiment_summary(articles: list[dict]) -> dict:
 
     total = len(articles)
 
-    # Calculate percentages
     breakdown = {}
     for sentiment, count in counts.items():
         percentage = (count / total * 100) if total > 0 else 0
@@ -414,26 +350,12 @@ def get_sentiment_summary(articles: list[dict]) -> dict:
     return {
         **counts,
         "total": total,
-        "breakdown": breakdown
+        "breakdown": breakdown,
     }
 
 
-def filter_by_sentiment(articles: list[dict], sentiment: str) -> list[dict]:
-    """
-    Filter articles by sentiment.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        List of analyzed articles
-    sentiment : str
-        Sentiment to filter by ("positive", "negative", "neutral")
-
-    RETURNS:
-    --------
-    list[dict]
-        Articles matching the specified sentiment
-    """
+def filter_by_sentiment(articles: list[Article], sentiment: str) -> list[Article]:
+    """Return articles whose ``sentiment`` field matches ``sentiment``."""
 
     sentiment = sentiment.lower()
     if sentiment not in VALID_SENTIMENTS:
@@ -443,11 +365,11 @@ def filter_by_sentiment(articles: list[dict], sentiment: str) -> list[dict]:
 
     return [
         article for article in articles
-        if article.get("sentiment", "neutral") == sentiment
+        if (article.sentiment or "neutral") == sentiment
     ]
 
 
-def display_sentiment_summary(articles: list[dict]) -> None:
+def display_sentiment_summary(articles: list[Article]) -> None:
     """
     Display a visual summary of sentiments.
     """
@@ -486,29 +408,34 @@ if __name__ == "__main__":
     print("TESTING SENTIMENT ANALYSIS")
     print("=" * 60)
 
-    # Test articles with different sentiments
     test_articles = [
-        {
-            "title": "Tech Company Reports Record Profits, Plans Major Expansion",
-            "summary": """The technology giant announced record-breaking quarterly
+        Article(
+            title="Tech Company Reports Record Profits, Plans Major Expansion",
+            summary="""The technology giant announced record-breaking quarterly
             profits of $50 billion, exceeding analyst expectations by 20%. The CEO
             revealed plans to hire 10,000 new employees and expand into three new
-            markets. Investors responded positively, with stock prices rising 15%."""
-        },
-        {
-            "title": "Earthquake Devastates Coastal Region, Thousands Displaced",
-            "summary": """A magnitude 7.2 earthquake struck the coastal region early
+            markets. Investors responded positively, with stock prices rising 15%.""",
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Earthquake Devastates Coastal Region, Thousands Displaced",
+            summary="""A magnitude 7.2 earthquake struck the coastal region early
             this morning, causing widespread destruction. Initial reports indicate
             hundreds of casualties and thousands of displaced residents. Emergency
-            services are overwhelmed, and international aid has been requested."""
-        },
-        {
-            "title": "Government Announces New Environmental Regulations",
-            "summary": """The Environmental Protection Agency released new guidelines
+            services are overwhelmed, and international aid has been requested.""",
+            source="Test",
+            url="",
+        ),
+        Article(
+            title="Government Announces New Environmental Regulations",
+            summary="""The Environmental Protection Agency released new guidelines
             for industrial emissions that will take effect next year. The regulations
             set specific limits on carbon output and require annual compliance reports.
-            Industry groups and environmental advocates are reviewing the details."""
-        },
+            Industry groups and environmental advocates are reviewing the details.""",
+            source="Test",
+            url="",
+        ),
     ]
 
     print("\n--- Analyzing Test Articles ---")
@@ -516,11 +443,11 @@ if __name__ == "__main__":
 
     print("\n--- Results ---")
     for article in analyzed:
-        print(f"\n📰 {article['title'][:50]}...")
+        print(f"\n📰 {article.title[:50]}...")
         emoji = {"positive": "😊", "negative": "😟", "neutral": "😐"}
-        print(f"   Sentiment: {emoji.get(article['sentiment'], '😐')} {article['sentiment']}")
-        print(f"   Confidence: {article['sentiment_confidence']}")
-        print(f"   Reason: {article['sentiment_reason']}")
+        print(f"   Sentiment: {emoji.get(article.sentiment, '😐')} {article.sentiment}")
+        print(f"   Confidence: {article.sentiment_confidence}")
+        print(f"   Reason: {article.sentiment_reason}")
 
     print("\n--- Summary ---")
     display_sentiment_summary(analyzed)
