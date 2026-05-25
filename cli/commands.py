@@ -409,9 +409,7 @@ def save_articles(state: AgentState, format_type: str = "json") -> None:
         return
 
     output_dir = "output"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        print(f"Created output directory: {output_dir}/")
+    os.makedirs(output_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
 
