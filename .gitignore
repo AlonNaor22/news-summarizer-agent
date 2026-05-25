@@ -8,6 +8,9 @@
 # Task specification file (internal use only)
 Task 2 News Summarizer Agent.md
 
+# Internal project notes
+TODO.md
+
 # Python cache files (auto-generated, not needed)
 __pycache__/
 *.py[cod]
