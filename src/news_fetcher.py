@@ -22,7 +22,14 @@ def fetch_from_rss(feed_url: str, source_name: str, max_articles: int = 5) -> li
     """Fetch up to ``max_articles`` from a single RSS feed as ``Article`` instances."""
 
     logger.info("Fetching from %s...", source_name)
-    feed = feedparser.parse(feed_url)
+    try:
+        response = requests.get(feed_url, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logger.warning("Could not fetch from %s: %s", source_name, e)
+        return []
+
+    feed = feedparser.parse(response.content)
 
     if feed.bozo and not feed.entries:
         logger.warning("Could not fetch from %s", source_name)
