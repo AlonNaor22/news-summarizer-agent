@@ -36,15 +36,18 @@
 #
 # =====================================================
 
+import logging
 from typing import Literal
+from collections import Counter
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, field_validator
-from collections import Counter
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+
+logger = logging.getLogger(__name__)
 
 
 class Trend(BaseModel):
@@ -302,9 +305,9 @@ def detect_trends(articles: list[Article], use_llm: bool = True) -> dict:
     "artificial intelligence"
     """
 
-    print("\n" + "=" * 50)
-    print("DETECTING TRENDING TOPICS")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("DETECTING TRENDING TOPICS")
+    logger.info("=" * 50)
 
     result = {
         "keyword_trends": [],
@@ -315,17 +318,17 @@ def detect_trends(articles: list[Article], use_llm: bool = True) -> dict:
     # -------------------------------------------------
     # STEP 1: Statistical Analysis (Fast, Free)
     # -------------------------------------------------
-    print("\n📊 Analyzing keyword frequencies...")
+    logger.info("Analyzing keyword frequencies...")
     result["keyword_trends"] = get_trending_keywords(articles, top_n=10)
     result["entity_trends"] = get_trending_entities(articles, top_n=5)
 
-    print(f"   Found {len(result['keyword_trends'])} trending keywords")
+    logger.info("Found %d trending keywords", len(result["keyword_trends"]))
 
     # -------------------------------------------------
     # STEP 2: LLM Analysis (Smart, Costs API)
     # -------------------------------------------------
     if use_llm and len(articles) >= 2:
-        print("\n🤖 Asking Claude to identify themes...")
+        logger.info("Asking Claude to identify themes...")
 
         try:
             chain = create_trend_chain()
@@ -342,21 +345,21 @@ def detect_trends(articles: list[Article], use_llm: bool = True) -> dict:
             # Convert to the legacy dict shape that display_trends / callers expect
             result["llm_trends"] = [trend.model_dump() for trend in trend_list.trends]
 
-            print(f"   Identified {len(result['llm_trends'])} major trends")
+            logger.info("Identified %d major trends", len(result["llm_trends"]))
 
         except Exception as e:
-            print(f"   Error in LLM analysis: {e}")
+            logger.error("Error in LLM analysis: %s", e)
             result["llm_trends"] = []
 
     elif not use_llm:
-        print("\n   (Skipping LLM analysis - use_llm=False)")
+        logger.info("Skipping LLM analysis (use_llm=False)")
 
     elif len(articles) < 2:
-        print("\n   (Skipping LLM analysis - need at least 2 articles)")
+        logger.info("Skipping LLM analysis (need at least 2 articles)")
 
-    print("\n" + "=" * 50)
-    print("TREND DETECTION COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("TREND DETECTION COMPLETE")
+    logger.info("=" * 50)
 
     return result
 
@@ -366,20 +369,18 @@ def detect_trends(articles: list[Article], use_llm: bool = True) -> dict:
 # =====================================================
 
 def display_trends(trends: dict) -> None:
-    """
-    Display trending topics in a readable format.
-    """
+    """Log trending topics in a readable format."""
 
-    print("\n" + "=" * 60)
-    print("📈 TRENDING TOPICS")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("📈 TRENDING TOPICS")
+    logger.info("=" * 60)
 
     # -------------------------------------------------
     # Display LLM-detected trends (most insightful)
     # -------------------------------------------------
     if trends.get("llm_trends"):
-        print("\n🔥 MAJOR TRENDS (AI Analysis)")
-        print("-" * 40)
+        logger.info("🔥 MAJOR TRENDS (AI Analysis)")
+        logger.info("-" * 40)
 
         for i, trend in enumerate(trends["llm_trends"], 1):
             # Strength indicator
@@ -389,18 +390,18 @@ def display_trends(trends: dict) -> None:
                 "low": "🟢"
             }.get(trend["strength"], "⚪")
 
-            print(f"\n  {i}. {trend['name']} {strength_emoji}")
-            print(f"     Strength: {trend['strength']} ({trend['article_count']} articles)")
-            print(f"     {trend['description']}")
+            logger.info("  %d. %s %s", i, trend["name"], strength_emoji)
+            logger.info("     Strength: %s (%d articles)", trend["strength"], trend["article_count"])
+            logger.info("     %s", trend["description"])
 
             if trend["keywords"]:
-                print(f"     Keywords: {', '.join(trend['keywords'][:5])}")
+                logger.info("     Keywords: %s", ", ".join(trend["keywords"][:5]))
 
     # -------------------------------------------------
     # Display keyword frequency trends
     # -------------------------------------------------
-    print("\n\n🏷️  TOP KEYWORDS")
-    print("-" * 40)
+    logger.info("🏷️  TOP KEYWORDS")
+    logger.info("-" * 40)
 
     for i, kw_data in enumerate(trends.get("keyword_trends", [])[:7], 1):
         keyword = kw_data["keyword"]
@@ -410,8 +411,8 @@ def display_trends(trends: dict) -> None:
         # Visual bar
         bar = "█" * min(count, 10)
 
-        print(f"  {i}. {keyword}")
-        print(f"     {bar} {count} articles ({percentage}%)")
+        logger.info("  %d. %s", i, keyword)
+        logger.info("     %s %d articles (%s%%)", bar, count, percentage)
 
     # -------------------------------------------------
     # Display entity trends
@@ -419,24 +420,24 @@ def display_trends(trends: dict) -> None:
     entity_trends = trends.get("entity_trends", {})
 
     if entity_trends.get("people"):
-        print("\n\n👤 TRENDING PEOPLE")
-        print("-" * 40)
+        logger.info("👤 TRENDING PEOPLE")
+        logger.info("-" * 40)
         for name, count in entity_trends["people"]:
-            print(f"  • {name} ({count} mentions)")
+            logger.info("  • %s (%d mentions)", name, count)
 
     if entity_trends.get("organizations"):
-        print("\n🏢 TRENDING ORGANIZATIONS")
-        print("-" * 40)
+        logger.info("🏢 TRENDING ORGANIZATIONS")
+        logger.info("-" * 40)
         for name, count in entity_trends["organizations"]:
-            print(f"  • {name} ({count} mentions)")
+            logger.info("  • %s (%d mentions)", name, count)
 
     if entity_trends.get("locations"):
-        print("\n📍 TRENDING LOCATIONS")
-        print("-" * 40)
+        logger.info("📍 TRENDING LOCATIONS")
+        logger.info("-" * 40)
         for name, count in entity_trends["locations"]:
-            print(f"  • {name} ({count} mentions)")
+            logger.info("  • %s (%d mentions)", name, count)
 
-    print("\n" + "=" * 60)
+    logger.info("=" * 60)
 
 
 # =====================================================

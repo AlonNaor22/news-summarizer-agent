@@ -11,6 +11,7 @@ Or from the backend directory:
     uvicorn main:app --reload --port 8000
 """
 
+import logging
 import sys
 import os
 import io
@@ -33,6 +34,8 @@ if BACKEND_DIR not in sys.path:
 
 # Load .env from project root before any module that reads env vars
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

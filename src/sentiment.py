@@ -26,6 +26,7 @@
 #
 # =====================================================
 
+import logging
 from typing import Literal
 
 from langchain_anthropic import ChatAnthropic
@@ -35,6 +36,7 @@ from pydantic import BaseModel, Field
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
 
+logger = logging.getLogger(__name__)
 
 VALID_SENTIMENTS = ["positive", "negative", "neutral"]
 
@@ -175,7 +177,7 @@ def analyze_sentiment(article: Article) -> Article:
         article.sentiment_reason = "Insufficient content for analysis"
         return article
 
-    print(f"  Analyzing sentiment: {title[:40]}...")
+    logger.info("Analyzing sentiment: %s...", title[:40])
 
     result: SentimentResult = chain.invoke({
         "title": title,
@@ -192,7 +194,7 @@ def analyze_sentiment(article: Article) -> Article:
         "neutral": "[=]",
     }.get(result.sentiment, "[=]")
 
-    print(f"    -> {indicator} {result.sentiment} ({result.confidence} confidence)")
+    logger.info("  -> %s %s (%s confidence)", indicator, result.sentiment, result.confidence)
 
     return article
 
@@ -204,29 +206,29 @@ def analyze_sentiment(article: Article) -> Article:
 def analyze_sentiments(articles: list[Article]) -> list[Article]:
     """Run sentiment analysis on every article, defaulting to neutral on error."""
 
-    print("\n" + "=" * 50)
-    print("ANALYZING ARTICLE SENTIMENTS")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("ANALYZING ARTICLE SENTIMENTS")
+    logger.info("=" * 50)
 
     analyzed: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
-        print(f"\n[{i}/{total}]", end="")
+        logger.info("[%d/%d]", i, total)
 
         try:
             analyzed_article = analyze_sentiment(article)
             analyzed.append(analyzed_article)
         except Exception as e:
-            print(f"  Error: {e}")
+            logger.error("Error analyzing sentiment: %s", e)
             article.sentiment = "neutral"
             article.sentiment_confidence = "low"
             article.sentiment_reason = f"Error during analysis: {str(e)}"
             analyzed.append(article)
 
-    print("\n" + "=" * 50)
-    print("SENTIMENT ANALYSIS COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("SENTIMENT ANALYSIS COMPLETE")
+    logger.info("=" * 50)
 
     return analyzed
 
@@ -270,8 +272,7 @@ def filter_by_sentiment(articles: list[Article], sentiment: str) -> list[Article
 
     sentiment = sentiment.lower()
     if sentiment not in VALID_SENTIMENTS:
-        print(f"Invalid sentiment: {sentiment}")
-        print(f"Valid options: {', '.join(VALID_SENTIMENTS)}")
+        logger.warning("Invalid sentiment: %s. Valid options: %s", sentiment, ", ".join(VALID_SENTIMENTS))
         return []
 
     return [
@@ -281,15 +282,13 @@ def filter_by_sentiment(articles: list[Article], sentiment: str) -> list[Article
 
 
 def display_sentiment_summary(articles: list[Article]) -> None:
-    """
-    Display a visual summary of sentiments.
-    """
+    """Log a visual summary of sentiments."""
 
     summary = get_sentiment_summary(articles)
 
-    print("\n" + "=" * 60)
-    print("SENTIMENT SUMMARY")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("SENTIMENT SUMMARY")
+    logger.info("=" * 60)
 
     # Visual bars
     for sentiment in ["positive", "negative", "neutral"]:
@@ -303,11 +302,11 @@ def display_sentiment_summary(articles: list[Article]) -> None:
         # Emoji
         emoji = {"positive": "😊", "negative": "😟", "neutral": "😐"}[sentiment]
 
-        print(f"\n  {emoji} {sentiment.upper()}")
-        print(f"     {bar} {count} articles ({percentage}%)")
+        logger.info("  %s %s", emoji, sentiment.upper())
+        logger.info("     %s %d articles (%s%%)", bar, count, percentage)
 
-    print(f"\n  Total articles analyzed: {summary['total']}")
-    print("=" * 60)
+    logger.info("  Total articles analyzed: %d", summary["total"])
+    logger.info("=" * 60)
 
 
 # =====================================================

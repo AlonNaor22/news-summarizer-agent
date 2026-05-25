@@ -1,5 +1,6 @@
 """Fetch news articles from RSS feeds and NewsAPI into :class:`Article` instances."""
 
+import logging
 from typing import Optional
 
 import feedparser
@@ -14,15 +15,17 @@ from config import (
 )
 from src.models import Article
 
+logger = logging.getLogger(__name__)
+
 
 def fetch_from_rss(feed_url: str, source_name: str, max_articles: int = 5) -> list[Article]:
     """Fetch up to ``max_articles`` from a single RSS feed as ``Article`` instances."""
 
-    print(f"  Fetching from {source_name}...")
+    logger.info("Fetching from %s...", source_name)
     feed = feedparser.parse(feed_url)
 
     if feed.bozo and not feed.entries:
-        print(f"  Warning: Could not fetch from {source_name}")
+        logger.warning("Could not fetch from %s", source_name)
         return []
 
     articles: list[Article] = []
@@ -37,7 +40,7 @@ def fetch_from_rss(feed_url: str, source_name: str, max_articles: int = 5) -> li
             )
         )
 
-    print(f"  Found {len(articles)} articles from {source_name}")
+    logger.info("Found %d articles from %s", len(articles), source_name)
     return articles
 
 
@@ -61,34 +64,34 @@ def fetch_all_news(max_per_source: int = None) -> list[Article]:
 
     all_articles: list[Article] = []
 
-    print("\n" + "=" * 50)
-    print("FETCHING NEWS FROM RSS FEEDS")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("FETCHING NEWS FROM RSS FEEDS")
+    logger.info("=" * 50)
 
     for source_name, feed_url in RSS_FEEDS.items():
         articles = fetch_from_rss(feed_url, source_name, max_per_source)
         all_articles.extend(articles)
 
-    print("=" * 50)
-    print(f"TOTAL: {len(all_articles)} articles fetched")
-    print("=" * 50 + "\n")
+    logger.info("=" * 50)
+    logger.info("TOTAL: %d articles fetched", len(all_articles))
+    logger.info("=" * 50)
 
     return all_articles
 
 
 def display_articles(articles: list[Article]) -> None:
-    """Print a human-readable summary of a list of articles."""
+    """Log a human-readable summary of a list of articles."""
 
     for i, article in enumerate(articles, 1):
-        print(f"\n{'=' * 60}")
-        print(f"ARTICLE {i}")
-        print(f"{'=' * 60}")
-        print(f"Title:       {article.title}")
-        print(f"Source:      {article.source}")
-        print(f"Published:   {article.published}")
-        print(f"URL:         {article.url}")
-        print(f"\nDescription:")
-        print(f"  {article.description[:300]}...")
+        logger.info("=" * 60)
+        logger.info("ARTICLE %d", i)
+        logger.info("=" * 60)
+        logger.info("Title:       %s", article.title)
+        logger.info("Source:      %s", article.source)
+        logger.info("Published:   %s", article.published)
+        logger.info("URL:         %s", article.url)
+        logger.info("Description:")
+        logger.info("  %s...", article.description[:300])
 
 
 def fetch_from_newsapi(
@@ -117,11 +120,11 @@ def fetch_from_newsapi(
     if query:
         params["q"] = query
 
-    print(f"  Fetching from NewsAPI...")
+    logger.info("Fetching from NewsAPI...")
     if category:
-        print(f"    Category: {category}")
+        logger.info("  Category: %s", category)
     if sources:
-        print(f"    Sources: {', '.join(sources)}")
+        logger.info("  Sources: %s", ", ".join(sources))
 
     try:
         response = requests.get(url, params=params, timeout=10)
@@ -129,7 +132,7 @@ def fetch_from_newsapi(
         data = response.json()
 
         if data.get("status") != "ok":
-            print(f"  NewsAPI error: {data.get('message', 'Unknown error')}")
+            logger.warning("NewsAPI error: %s", data.get("message", "Unknown error"))
             return []
 
         articles: list[Article] = []
@@ -146,11 +149,11 @@ def fetch_from_newsapi(
                 )
             )
 
-        print(f"  Found {len(articles)} articles from NewsAPI")
+        logger.info("Found %d articles from NewsAPI", len(articles))
         return articles
 
     except requests.exceptions.RequestException as e:
-        print(f"  Error fetching from NewsAPI: {e}")
+        logger.error("Error fetching from NewsAPI: %s", e)
         return []
 
 
@@ -165,9 +168,7 @@ def fetch_all_newsapi(
         api_key = NEWS_API_KEY
 
     if not api_key:
-        print("\nNewsAPI key not found!")
-        print("   Add NEWS_API_KEY to your .env file")
-        print("   Get a free key at: https://newsapi.org/")
+        logger.warning("NewsAPI key not found! Add NEWS_API_KEY to your .env file")
         return []
 
     if categories is None:
@@ -175,9 +176,9 @@ def fetch_all_newsapi(
 
     all_articles: list[Article] = []
 
-    print("\n" + "=" * 50)
-    print("FETCHING NEWS FROM NEWSAPI")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("FETCHING NEWS FROM NEWSAPI")
+    logger.info("=" * 50)
 
     for category in categories:
         articles = fetch_from_newsapi(
@@ -187,9 +188,9 @@ def fetch_all_newsapi(
         )
         all_articles.extend(articles)
 
-    print("=" * 50)
-    print(f"TOTAL: {len(all_articles)} articles fetched from NewsAPI")
-    print("=" * 50 + "\n")
+    logger.info("=" * 50)
+    logger.info("TOTAL: %d articles fetched from NewsAPI", len(all_articles))
+    logger.info("=" * 50)
 
     return all_articles
 
@@ -213,8 +214,7 @@ def fetch_news(source: str = "rss", max_per_source: int = None) -> list[Article]
         newsapi_articles = fetch_all_newsapi(max_per_category=max_per_source)
         return rss_articles + newsapi_articles
 
-    print(f"Unknown source: {source}")
-    print("Valid options: rss, newsapi, both")
+    logger.warning("Unknown source: %s. Valid options: rss, newsapi, both", source)
     return []
 
 

@@ -38,6 +38,7 @@
 #
 # =====================================================
 
+import logging
 from typing import Literal
 
 from langchain_anthropic import ChatAnthropic
@@ -47,6 +48,8 @@ from pydantic import BaseModel, Field
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
 from src.models import Article
 from src.similarity import calculate_combined_similarity
+
+logger = logging.getLogger(__name__)
 
 
 class SourceAnalysis(BaseModel):
@@ -324,7 +327,7 @@ def compare_sources(articles: list[Article]) -> StoryComparison:
         return StoryComparison(error="Need at least 2 articles to compare")
 
     sources = [art.source or "Unknown" for art in articles]
-    print(f"\n🔍 Comparing coverage from: {', '.join(sources)}")
+    logger.info("Comparing coverage from: %s", ", ".join(sources))
 
     chain = create_comparison_chain()
     articles_text = format_articles_for_comparison(articles)
@@ -350,36 +353,35 @@ def compare_sources(articles: list[Article]) -> StoryComparison:
 def compare_all_stories(articles: list[Article]) -> list[StoryComparison]:
     """Find all multi-source stories and run :func:`compare_sources` on each."""
 
-    print("\n" + "=" * 50)
-    print("COMPARING SAME STORY ACROSS SOURCES")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("COMPARING SAME STORY ACROSS SOURCES")
+    logger.info("=" * 50)
 
-    print("\n📊 Finding stories with multiple sources...")
+    logger.info("Finding stories with multiple sources...")
     stories = find_same_story_articles(articles)
 
     if not stories:
-        print("   No stories found with multiple sources.")
-        print("   (Need same story from different news outlets)")
+        logger.info("No stories found with multiple sources.")
         return []
 
-    print(f"   Found {len(stories)} stories with multiple sources")
+    logger.info("Found %d stories with multiple sources", len(stories))
 
     comparisons: list[StoryComparison] = []
 
     for i, story in enumerate(stories, 1):
-        print(f"\n[{i}/{len(stories)}] Analyzing: {story['story_title'][:40]}...")
-        print(f"   Sources: {', '.join(story['sources'])}")
+        logger.info("[%d/%d] Analyzing: %s...", i, len(stories), story["story_title"][:40])
+        logger.info("  Sources: %s", ", ".join(story["sources"]))
 
         try:
             comparison = compare_sources(story["articles"])
             comparison.story_title = story["story_title"]
             comparisons.append(comparison)
         except Exception as e:
-            print(f"   Error comparing: {e}")
+            logger.error("Error comparing story: %s", e)
 
-    print("\n" + "=" * 50)
-    print("COMPARISON COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("COMPARISON COMPLETE")
+    logger.info("=" * 50)
 
     return comparisons
 
@@ -403,27 +405,27 @@ def quick_compare(article_a: Article, article_b: Article) -> StoryComparison:
 # =====================================================
 
 def display_comparison(comparison: StoryComparison) -> None:
-    """Display a source comparison in readable format."""
+    """Log a source comparison in readable format."""
 
-    print("\n" + "=" * 60)
-    print("📰 MULTI-SOURCE COMPARISON")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("MULTI-SOURCE COMPARISON")
+    logger.info("=" * 60)
 
     title = (comparison.story_title or "Unknown")[:50]
-    print(f"\n📋 STORY: {title}...")
-    print(f"   Sources: {', '.join(comparison.sources)}")
+    logger.info("STORY: %s...", title)
+    logger.info("  Sources: %s", ", ".join(comparison.sources))
 
-    print(f"\n📝 SUMMARY:")
-    print(f"   {comparison.story_summary or 'No summary available'}")
+    logger.info("SUMMARY:")
+    logger.info("  %s", comparison.story_summary or "No summary available")
 
     if comparison.common_facts:
-        print(f"\n✅ COMMON FACTS (all sources agree):")
+        logger.info("COMMON FACTS (all sources agree):")
         for fact in comparison.common_facts:
-            print(f"   • {fact}")
+            logger.info("  • %s", fact)
 
     if comparison.source_analyses:
-        print(f"\n📊 SOURCE-BY-SOURCE ANALYSIS:")
-        print("-" * 40)
+        logger.info("SOURCE-BY-SOURCE ANALYSIS:")
+        logger.info("-" * 40)
 
         for source, analysis in comparison.source_analyses.items():
             tone_emoji = {
@@ -432,42 +434,42 @@ def display_comparison(comparison: StoryComparison) -> None:
                 "neutral": "😐",
             }.get(analysis.tone, "❓")
 
-            print(f"\n   📰 {source} {tone_emoji}")
-            print(f"      Tone: {analysis.tone}")
-            print(f"      Focus: {analysis.emphasis or 'Unknown'}")
+            logger.info("  %s %s", source, tone_emoji)
+            logger.info("     Tone: %s", analysis.tone)
+            logger.info("     Focus: %s", analysis.emphasis or "Unknown")
 
             if analysis.unique_details and analysis.unique_details.lower() != "none":
-                print(f"      Unique info: {analysis.unique_details}")
+                logger.info("     Unique info: %s", analysis.unique_details)
 
             if analysis.potential_bias and analysis.potential_bias.lower() not in ("none", "none detected"):
-                print(f"      ⚠️  Potential bias: {analysis.potential_bias}")
+                logger.info("     Potential bias: %s", analysis.potential_bias)
 
     if comparison.key_differences:
-        print(f"\n⚡ KEY DIFFERENCES:")
+        logger.info("KEY DIFFERENCES:")
         for diff in comparison.key_differences:
-            print(f"   • {diff}")
+            logger.info("  • %s", diff)
 
     if comparison.overall_assessment:
-        print(f"\n🎯 OVERALL ASSESSMENT:")
-        print(f"   {comparison.overall_assessment}")
+        logger.info("OVERALL ASSESSMENT:")
+        logger.info("  %s", comparison.overall_assessment)
 
-    print("\n" + "=" * 60)
+    logger.info("=" * 60)
 
 
 def display_all_comparisons(comparisons: list[StoryComparison]) -> None:
-    """Display all story comparisons."""
+    """Log all story comparisons."""
 
     if not comparisons:
-        print("\nNo multi-source stories found to compare.")
+        logger.info("No multi-source stories found to compare.")
         return
 
-    print("\n" + "=" * 60)
-    print(f"📊 FOUND {len(comparisons)} STORIES WITH MULTIPLE SOURCES")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("FOUND %d STORIES WITH MULTIPLE SOURCES", len(comparisons))
+    logger.info("=" * 60)
 
     for i, comparison in enumerate(comparisons, 1):
-        print(f"\n{'─' * 60}")
-        print(f"STORY {i} of {len(comparisons)}")
+        logger.info("-" * 60)
+        logger.info("STORY %d of %d", i, len(comparisons))
         display_comparison(comparison)
 
 

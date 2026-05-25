@@ -24,7 +24,7 @@
 - [x] 🟡 ~~`MAX_TOKENS = 500` overridden in every module~~ — added a single `LLM_SETTINGS` dict in [config.py](config.py) keyed by task (`summarize`, `categorize`, `tag`, `sentiment`, `trending`, `similarity`, `comparison`, `qa`); every `create_llm()` now reads its temperature and max_tokens from that one place.
 - [x] 🟡 ~~Most CLI methods in [main.py](main.py) have no return type hints~~ — added `-> None` (or appropriate `int | None` for optional args) to all 22 public/private methods of `NewsSummarizerAgent`.
 - [x] 🟢 ~~[src/__init__.py](src/__init__.py) is a tutorial comment with no code~~ — replaced with a one-line docstring.
-- [ ] 🟢 Print statements are used as logging throughout `src/` ([summarizer.py:190](src/summarizer.py:190), [news_fetcher.py:80](src/news_fetcher.py:80), etc.). Replace with `logging.getLogger(__name__)` — library code shouldn't print.
+- [x] 🟢 ~~Print statements are used as logging throughout `src/` ([summarizer.py:190](src/summarizer.py:190), [news_fetcher.py:80](src/news_fetcher.py:80), etc.). Replace with `logging.getLogger(__name__)` — library code shouldn't print.~~ — added `import logging` + `logger = logging.getLogger(__name__)` to all 9 `src/` modules; replaced every progress/warning/error `print()` with `logger.info` / `logger.warning` / `logger.error`; `__main__` test blocks left untouched. Added `logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")` to [main.py](main.py) and [backend/main.py](backend/main.py). All 40 tests pass.
 
 ```
 Prompt for a new chat (model: Sonnet)

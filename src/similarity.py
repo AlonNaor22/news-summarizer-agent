@@ -47,6 +47,7 @@
 #
 # =====================================================
 
+import logging
 from typing import Any, Literal, Union
 
 from langchain_anthropic import ChatAnthropic
@@ -55,6 +56,8 @@ from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, SIMILARITY_THRESHOLDS
 from src.models import Article
+
+logger = logging.getLogger(__name__)
 
 
 class RelatedPair(BaseModel):
@@ -436,7 +439,7 @@ def find_related_articles_llm(articles: list[Article]) -> list[EnrichedRelatedPa
     if len(articles) < 2:
         return []
 
-    print("\n🤖 Asking Claude to find article relationships...")
+    logger.info("Asking Claude to find article relationships...")
 
     chain = create_similarity_chain()
     articles_text = format_articles_for_similarity(articles)
@@ -464,7 +467,7 @@ def find_related_articles_llm(articles: list[Article]) -> list[EnrichedRelatedPa
             explanation=pair.explanation,
         ))
 
-    print(f"   Found {len(enriched)} related pairs")
+    logger.info("Found %d related pairs", len(enriched))
 
     return enriched
 
@@ -495,9 +498,9 @@ def analyze_article_relationships(
         - article_connections: For each article, its related articles
     """
 
-    print("\n" + "=" * 50)
-    print("ANALYZING ARTICLE RELATIONSHIPS")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("ANALYZING ARTICLE RELATIONSHIPS")
+    logger.info("=" * 50)
 
     result = {
         "statistical_pairs": [],
@@ -508,11 +511,11 @@ def analyze_article_relationships(
     # -------------------------------------------------
     # Statistical Analysis (Fast, Free)
     # -------------------------------------------------
-    print("\n📊 Finding relationships by keyword overlap...")
+    logger.info("Finding relationships by keyword overlap...")
     result["statistical_pairs"] = find_all_related_pairs(
         articles, threshold=SIMILARITY_THRESHOLDS["find_similar"]
     )
-    print(f"   Found {len(result['statistical_pairs'])} related pairs")
+    logger.info("Found %d related pairs", len(result["statistical_pairs"]))
 
     # -------------------------------------------------
     # LLM Analysis (Smart)
@@ -562,9 +565,9 @@ def analyze_article_relationships(
 
         result["article_connections"][title] = connections
 
-    print("\n" + "=" * 50)
-    print("RELATIONSHIP ANALYSIS COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("RELATIONSHIP ANALYSIS COMPLETE")
+    logger.info("=" * 50)
 
     return result
 
@@ -574,15 +577,14 @@ def analyze_article_relationships(
 # =====================================================
 
 def display_similar_articles(target: Article, similar: list[Article]) -> None:
-    """Print articles similar to ``target`` along with their similarity stats."""
+    """Log articles similar to ``target`` along with their similarity stats."""
 
-    print("\n" + "=" * 60)
-    print(f"📰 ARTICLES SIMILAR TO:")
-    print(f"   \"{(target.title or 'Unknown')[:50]}...\"")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("ARTICLES SIMILAR TO: \"%s...\"", (target.title or "Unknown")[:50])
+    logger.info("=" * 60)
 
     if not similar:
-        print("\n   No similar articles found.")
+        logger.info("No similar articles found.")
         return
 
     for i, article in enumerate(similar, 1):
@@ -590,27 +592,27 @@ def display_similar_articles(target: Article, similar: list[Article]) -> None:
         score = sim.get("overall", 0)
         score_bar = "█" * int(score * 10)
 
-        print(f"\n  {i}. {(article.title or 'Untitled')[:50]}...")
-        print(f"     Similarity: {score_bar} {score:.0%}")
+        logger.info("  %d. %s...", i, (article.title or "Untitled")[:50])
+        logger.info("     Similarity: %s %.0f%%", score_bar, score * 100)
 
         if sim.get("shared_keywords"):
-            print(f"     Shared keywords: {', '.join(sim['shared_keywords'])}")
+            logger.info("     Shared keywords: %s", ", ".join(sim["shared_keywords"]))
 
         if sim.get("shared_entities"):
-            print(f"     Shared entities: {', '.join(sim['shared_entities'])}")
+            logger.info("     Shared entities: %s", ", ".join(sim["shared_entities"]))
 
 
 def display_all_relationships(analysis: dict) -> None:
-    """Display all article relationships."""
+    """Log all article relationships."""
 
-    print("\n" + "=" * 60)
-    print("🔗 ARTICLE RELATIONSHIPS")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("ARTICLE RELATIONSHIPS")
+    logger.info("=" * 60)
 
     # Display LLM-found relationships (most insightful)
     if analysis.get("llm_pairs"):
-        print("\n🤖 AI-DETECTED RELATIONSHIPS")
-        print("-" * 40)
+        logger.info("AI-DETECTED RELATIONSHIPS")
+        logger.info("-" * 40)
 
         for pair in analysis["llm_pairs"]:
             strength_emoji = {
@@ -619,27 +621,27 @@ def display_all_relationships(analysis: dict) -> None:
                 "low": "🟢"
             }.get(pair.strength, "⚪")
 
-            print(f"\n  {strength_emoji} {pair.relationship.upper()}")
-            print(f"     📰 \"{pair.article_a_title[:40]}...\"")
-            print(f"     📰 \"{pair.article_b_title[:40]}...\"")
-            print(f"     💡 {pair.explanation}")
+            logger.info("  %s %s", strength_emoji, pair.relationship.upper())
+            logger.info('     "%s..."', pair.article_a_title[:40])
+            logger.info('     "%s..."', pair.article_b_title[:40])
+            logger.info("     %s", pair.explanation)
 
     # Display statistical relationships
     if analysis.get("statistical_pairs"):
-        print("\n\n📊 KEYWORD-BASED RELATIONSHIPS")
-        print("-" * 40)
+        logger.info("KEYWORD-BASED RELATIONSHIPS")
+        logger.info("-" * 40)
 
         for pair in analysis["statistical_pairs"][:5]:  # Top 5
             score = pair["similarity"]["overall"]
             shared = pair["similarity"].get("shared_keywords", [])
 
-            print(f"\n  Score: {score:.0%}")
-            print(f"     📰 \"{pair['article_a_title'][:40]}...\"")
-            print(f"     📰 \"{pair['article_b_title'][:40]}...\"")
+            logger.info("  Score: %.0f%%", score * 100)
+            logger.info('     "%s..."', pair["article_a_title"][:40])
+            logger.info('     "%s..."', pair["article_b_title"][:40])
             if shared:
-                print(f"     🏷️  Shared: {', '.join(shared)}")
+                logger.info("     Shared: %s", ", ".join(shared))
 
-    print("\n" + "=" * 60)
+    logger.info("=" * 60)
 
 
 # =====================================================

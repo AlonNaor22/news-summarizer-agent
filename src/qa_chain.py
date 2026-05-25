@@ -16,6 +16,8 @@
 #
 # =====================================================
 
+import logging
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
@@ -23,6 +25,8 @@ from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+
+logger = logging.getLogger(__name__)
 
 
 # =====================================================
@@ -113,8 +117,7 @@ class NewsQAChain:
         self.articles = articles
         self.chat_history = []
 
-        print(f"\n[OK] Loaded {len(articles)} articles into Q&A system")
-        print("  You can now ask questions about these articles!")
+        logger.info("Loaded %d articles into Q&A system", len(articles))
 
     def _format_articles_for_context(self) -> str:
         """Render the loaded articles into the text block Claude references."""
@@ -185,7 +188,7 @@ Summary: {article.summary or article.description or 'No summary available'}
         Use this to start a fresh conversation about the same articles.
         """
         self.chat_history = []
-        print("[OK] Conversation history cleared")
+        logger.info("Conversation history cleared")
 
     def get_history(self) -> list:
         """
@@ -196,22 +199,20 @@ Summary: {article.summary or article.description or 'No summary available'}
         return self.chat_history
 
     def display_history(self) -> None:
-        """
-        Display the conversation history in a readable format.
-        """
+        """Log the conversation history in a readable format."""
         if not self.chat_history:
-            print("No conversation history yet.")
+            logger.info("No conversation history yet.")
             return
 
-        print("\n" + "="*60)
-        print("CONVERSATION HISTORY")
-        print("="*60)
+        logger.info("=" * 60)
+        logger.info("CONVERSATION HISTORY")
+        logger.info("=" * 60)
 
         for msg in self.chat_history:
             if isinstance(msg, HumanMessage):
-                print(f"\n🧑 You: {msg.content}")
+                logger.info("You: %s", msg.content)
             elif isinstance(msg, AIMessage):
-                print(f"\n🤖 AI: {msg.content}")
+                logger.info("AI: %s", msg.content)
 
 
 # =====================================================

@@ -12,12 +12,16 @@
 #
 # =====================================================
 
+import logging
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+
+logger = logging.getLogger(__name__)
 
 
 # =====================================================
@@ -142,7 +146,7 @@ def summarize_article(article: Article) -> Article:
         article.summary = "Summary unavailable - article content too short."
         return article
 
-    print(f"  Summarizing: {title[:50]}...")
+    logger.info("Summarizing: %s...", title[:50])
 
     summary = chain.invoke({
         "title": title,
@@ -157,41 +161,41 @@ def summarize_article(article: Article) -> Article:
 def summarize_articles(articles: list[Article]) -> list[Article]:
     """Summarize every article in ``articles``, returning the same list."""
 
-    print("\n" + "=" * 50)
-    print("SUMMARIZING ARTICLES WITH CLAUDE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("SUMMARIZING ARTICLES WITH CLAUDE")
+    logger.info("=" * 50)
 
     summarized: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
-        print(f"\n[{i}/{total}]", end="")
+        logger.info("[%d/%d]", i, total)
 
         try:
             summarized_article = summarize_article(article)
             summarized.append(summarized_article)
         except Exception as e:
-            print(f"  Error summarizing: {e}")
+            logger.error("Error summarizing: %s", e)
             article.summary = f"Error: Could not summarize - {str(e)}"
             summarized.append(article)
 
-    print("\n" + "=" * 50)
-    print(f"COMPLETED: {len(summarized)} articles summarized")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("COMPLETED: %d articles summarized", len(summarized))
+    logger.info("=" * 50)
 
     return summarized
 
 
 def display_summary(article: Article) -> None:
-    """Print a summarized article in a readable format."""
-    print(f"\n{'=' * 60}")
-    print(f"📰 {article.title}")
-    print(f"{'=' * 60}")
-    print(f"Source: {article.source}")
-    print(f"Published: {article.published or 'Unknown'}")
-    print(f"\n📝 SUMMARY:")
-    print(f"   {article.summary or 'No summary available'}")
-    print(f"\n🔗 {article.url}")
+    """Log a summarized article in a readable format."""
+    logger.info("=" * 60)
+    logger.info("📰 %s", article.title)
+    logger.info("=" * 60)
+    logger.info("Source: %s", article.source)
+    logger.info("Published: %s", article.published or "Unknown")
+    logger.info("📝 SUMMARY:")
+    logger.info("   %s", article.summary or "No summary available")
+    logger.info("🔗 %s", article.url)
 
 
 # =====================================================

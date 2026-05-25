@@ -12,6 +12,8 @@
 #
 # =====================================================
 
+import logging
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -19,6 +21,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
 from src.models import Article
+
+logger = logging.getLogger(__name__)
 
 
 class MultiCategoryResult(BaseModel):
@@ -186,7 +190,7 @@ def categorize_article(article: Article) -> Article:
         article.category = "Other"
         return article
 
-    print(f"  Categorizing: {title[:40]}...")
+    logger.info("Categorizing: %s...", title[:40])
 
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
@@ -199,34 +203,34 @@ def categorize_article(article: Article) -> Article:
     category = clean_category(raw_response)
     article.category = category
 
-    print(f"    -> {category}")
+    logger.info("  -> %s", category)
 
     return article
 
 
 def categorize_articles(articles: list[Article]) -> list[Article]:
     """Categorize every article, falling back to ``"Other"`` on errors."""
-    print("\n" + "=" * 50)
-    print("CATEGORIZING ARTICLES")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("CATEGORIZING ARTICLES")
+    logger.info("=" * 50)
 
     categorized: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
-        print(f"\n[{i}/{total}]", end="")
+        logger.info("[%d/%d]", i, total)
 
         try:
             categorized_article = categorize_article(article)
             categorized.append(categorized_article)
         except Exception as e:
-            print(f"  Error: {e}")
+            logger.error("Error categorizing: %s", e)
             article.category = "Other"
             categorized.append(article)
 
-    print("\n" + "=" * 50)
-    print("CATEGORIZATION COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("CATEGORIZATION COMPLETE")
+    logger.info("=" * 50)
 
     return categorized
 
@@ -271,7 +275,7 @@ def categorize_article_multi(article: Article) -> Article:
         article.secondary_categories = []
         return article
 
-    print(f"  Categorizing: {title[:40]}...")
+    logger.info("Categorizing: %s...", title[:40])
 
     categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
 
@@ -285,55 +289,55 @@ def categorize_article_multi(article: Article) -> Article:
     article.secondary_categories = parsed.secondary
 
     secondary_str = ", ".join(parsed.secondary) if parsed.secondary else "None"
-    print(f"    -> Primary: {parsed.primary}")
-    print(f"    -> Secondary: {secondary_str}")
+    logger.info("  -> Primary: %s", parsed.primary)
+    logger.info("  -> Secondary: %s", secondary_str)
 
     return article
 
 
 def categorize_articles_multi(articles: list[Article]) -> list[Article]:
     """Apply multi-category classification to every article."""
-    print("\n" + "=" * 50)
-    print("CATEGORIZING ARTICLES (Multi-Category)")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("CATEGORIZING ARTICLES (Multi-Category)")
+    logger.info("=" * 50)
 
     categorized: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
-        print(f"\n[{i}/{total}]", end="")
+        logger.info("[%d/%d]", i, total)
 
         try:
             categorized_article = categorize_article_multi(article)
             categorized.append(categorized_article)
         except Exception as e:
-            print(f"  Error: {e}")
+            logger.error("Error categorizing: %s", e)
             article.category = "Other"
             article.secondary_categories = []
             categorized.append(article)
 
-    print("\n" + "=" * 50)
-    print("CATEGORIZATION COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("CATEGORIZATION COMPLETE")
+    logger.info("=" * 50)
 
     return categorized
 
 
 def display_multi_categories(articles: list[Article]) -> None:
-    """Print articles along with their primary + secondary categories."""
-    print("\n" + "=" * 60)
-    print("ARTICLES WITH MULTIPLE CATEGORIES")
-    print("=" * 60)
+    """Log articles along with their primary + secondary categories."""
+    logger.info("=" * 60)
+    logger.info("ARTICLES WITH MULTIPLE CATEGORIES")
+    logger.info("=" * 60)
 
     for article in articles:
-        print(f"\n📰 {article.title[:50]}...")
-        print(f"   Primary:   {article.category or 'Other'}")
+        logger.info("📰 %s...", article.title[:50])
+        logger.info("   Primary:   %s", article.category or "Other")
 
         secondary = article.secondary_categories
         if secondary:
-            print(f"   Secondary: {', '.join(secondary)}")
+            logger.info("   Secondary: %s", ", ".join(secondary))
         else:
-            print(f"   Secondary: None")
+            logger.info("   Secondary: None")
 
 
 def group_by_category(articles: list[Article]) -> dict[str, list[Article]]:
@@ -352,20 +356,20 @@ def group_by_category(articles: list[Article]) -> dict[str, list[Article]]:
 
 
 def display_by_category(articles: list[Article]) -> None:
-    """Print articles grouped by category."""
+    """Log articles grouped by category."""
     grouped = group_by_category(articles)
 
-    print("\n" + "=" * 60)
-    print("ARTICLES BY CATEGORY")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("ARTICLES BY CATEGORY")
+    logger.info("=" * 60)
 
     for category, category_articles in grouped.items():
-        print(f"\n📁 {category.upper()} ({len(category_articles)} articles)")
-        print("-" * 40)
+        logger.info("📁 %s (%d articles)", category.upper(), len(category_articles))
+        logger.info("-" * 40)
 
         for article in category_articles:
-            print(f"  • {article.title[:50]}...")
-            print(f"    Source: {article.source}")
+            logger.info("  • %s...", article.title[:50])
+            logger.info("    Source: %s", article.source)
 
 
 # =====================================================

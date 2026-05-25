@@ -25,12 +25,16 @@
 #
 # =====================================================
 
+import logging
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, field_validator
 
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
+
+logger = logging.getLogger(__name__)
 
 
 class ArticleTags(BaseModel):
@@ -128,7 +132,7 @@ def tag_article(article: Article) -> Article:
         article.locations = []
         return article
 
-    print(f"  Tagging: {title[:40]}...")
+    logger.info("Tagging: %s...", title[:40])
 
     tags: ArticleTags = chain.invoke({
         "title": title,
@@ -141,9 +145,9 @@ def tag_article(article: Article) -> Article:
     article.locations = tags.locations
 
     if tags.keywords:
-        print(f"    Keywords: {', '.join(tags.keywords[:3])}...")
+        logger.info("  Keywords: %s...", ", ".join(tags.keywords[:3]))
     if tags.people:
-        print(f"    People: {', '.join(tags.people)}")
+        logger.info("  People: %s", ", ".join(tags.people))
 
     return article
 
@@ -151,37 +155,37 @@ def tag_article(article: Article) -> Article:
 def tag_articles(articles: list[Article]) -> list[Article]:
     """Apply tagging to every article, falling back to empty lists on errors."""
 
-    print("\n" + "=" * 50)
-    print("EXTRACTING KEYWORDS & ENTITIES")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("EXTRACTING KEYWORDS & ENTITIES")
+    logger.info("=" * 50)
 
     tagged: list[Article] = []
     total = len(articles)
 
     for i, article in enumerate(articles, 1):
-        print(f"\n[{i}/{total}]", end="")
+        logger.info("[%d/%d]", i, total)
 
         try:
             tagged_article = tag_article(article)
             tagged.append(tagged_article)
         except Exception as e:
-            print(f"  Error tagging: {e}")
+            logger.error("Error tagging: %s", e)
             article.keywords = []
             article.people = []
             article.organizations = []
             article.locations = []
             tagged.append(article)
 
-    print("\n" + "=" * 50)
-    print("TAGGING COMPLETE")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("TAGGING COMPLETE")
+    logger.info("=" * 50)
 
     return tagged
 
 
 def display_tags(article: Article) -> None:
-    """Print an article's tags in a readable format."""
-    print(f"\n📰 {(article.title or 'Untitled')[:50]}...")
+    """Log an article's tags in a readable format."""
+    logger.info("📰 %s...", (article.title or "Untitled")[:50])
 
     keywords = article.keywords
     people = article.people
@@ -189,16 +193,16 @@ def display_tags(article: Article) -> None:
     locations = article.locations
 
     if keywords:
-        print(f"   🏷️  Keywords: {', '.join(keywords)}")
+        logger.info("   🏷️  Keywords: %s", ", ".join(keywords))
     if people:
-        print(f"   👤 People: {', '.join(people)}")
+        logger.info("   👤 People: %s", ", ".join(people))
     if organizations:
-        print(f"   🏢 Organizations: {', '.join(organizations)}")
+        logger.info("   🏢 Organizations: %s", ", ".join(organizations))
     if locations:
-        print(f"   📍 Locations: {', '.join(locations)}")
+        logger.info("   📍 Locations: %s", ", ".join(locations))
 
     if not any([keywords, people, organizations, locations]):
-        print("   (No tags extracted)")
+        logger.info("   (No tags extracted)")
 
 
 def get_all_keywords(articles: list[Article] | list[dict]) -> dict[str, int]:
