@@ -9,12 +9,9 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-from src.categorizer import categorize_articles
 from src.models import Article
 from src.news_fetcher import fetch_news
-from src.sentiment import analyze_sentiments
-from src.summarizer import summarize_articles
-from src.tagger import tag_articles
+from src.pipeline import process_articles
 
 from api.dependencies import get_app_state
 
@@ -41,10 +38,7 @@ async def fetch_articles(request: FetchRequest):
             return {"articles": [], "total": 0, "message": "No articles fetched"}
 
         if request.process:
-            articles = summarize_articles(articles)
-            articles = categorize_articles(articles)
-            articles = tag_articles(articles)
-            articles = analyze_sentiments(articles)
+            articles = process_articles(articles)
 
         for i, article in enumerate(articles):
             article.id = i

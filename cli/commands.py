@@ -13,10 +13,10 @@ from dateutil import parser as date_parser
 
 from src.models import Article
 from src.news_fetcher import fetch_news as _fetch_articles
-from src.summarizer import summarize_articles
-from src.categorizer import categorize_articles, group_by_category
+from src.pipeline import process_articles
+from src.categorizer import group_by_category
 from src.qa_chain import NewsQAChain
-from src.tagger import tag_articles, get_all_keywords, get_all_entities
+from src.tagger import get_all_keywords, get_all_entities
 from src.sentiment import (
     analyze_sentiments,
     get_sentiment_summary,
@@ -76,17 +76,8 @@ def fetch_news(state: AgentState, source: str = "rss") -> None:
         print("No articles found. Please check your internet connection.")
         return
 
-    print("\nStep 2/5: Summarizing articles with Claude...")
-    summarized = summarize_articles(raw_articles)
-
-    print("\nStep 3/5: Categorizing articles...")
-    categorized = categorize_articles(summarized)
-
-    print("\nStep 4/5: Extracting keywords and entities...")
-    tagged = tag_articles(categorized)
-
-    print("\nStep 5/5: Analyzing sentiment...")
-    state.articles = analyze_sentiments(tagged)
+    print("\nSteps 2–5: Summarizing, categorizing, tagging, and analyzing sentiment...")
+    state.articles = process_articles(raw_articles)
 
     state.qa_chain = NewsQAChain()
     state.qa_chain.load_articles(state.articles)
