@@ -1,9 +1,13 @@
 """Articles API routes — fetching, processing, and managing news articles."""
 
+import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from src.categorizer import categorize_articles
 from src.models import Article
@@ -56,8 +60,10 @@ async def fetch_articles(request: FetchRequest):
             "message": f"Successfully fetched and processed {len(articles)} articles",
         }
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        request_id = uuid.uuid4()
+        logger.exception("Unhandled error in fetch_articles [request_id=%s]", request_id)
+        raise HTTPException(status_code=500, detail=f"Internal error processing fetch (id={request_id})")
 
 
 @router.get("/articles")

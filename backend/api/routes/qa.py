@@ -1,7 +1,12 @@
 """Q&A API routes — asking questions about articles with conversation memory."""
 
+import logging
+import uuid
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from api.dependencies import get_app_state
 
@@ -50,8 +55,10 @@ async def ask_question(request: QuestionRequest):
             "article_count": len(state.articles)
         }
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        request_id = uuid.uuid4()
+        logger.exception("Unhandled error in ask_question [request_id=%s]", request_id)
+        raise HTTPException(status_code=500, detail=f"Internal error answering question (id={request_id})")
 
 
 @router.get("/qa/history")
