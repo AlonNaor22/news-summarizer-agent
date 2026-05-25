@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
 from src.models import Article
 from src.retry_utils import retried_invoke
+from src.timing import timeit
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +181,7 @@ def clean_category(raw_category: str) -> str:
     return "Other"
 
 
+@timeit
 def categorize_article(article: Article) -> Article:
     """Set ``article.category`` via Claude and return the article."""
     chain = create_categorize_chain()

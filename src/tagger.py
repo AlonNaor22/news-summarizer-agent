@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field, field_validator
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
 from src.retry_utils import retried_invoke
+from src.timing import timeit
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ def create_tagging_chain():
     return _chain
 
 
+@timeit
 def tag_article(article: Article) -> Article:
     """Populate ``article.keywords``/``.people``/``.organizations``/``.locations``."""
 

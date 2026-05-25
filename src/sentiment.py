@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
 from src.models import Article
 from src.retry_utils import retried_invoke
+from src.timing import timeit
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ def create_sentiment_chain():
 # ANALYZE SINGLE ARTICLE
 # =====================================================
 
+@timeit
 def analyze_sentiment(article: Article) -> Article:
     """Populate ``article.sentiment``, ``.sentiment_confidence``, ``.sentiment_reason``."""
 
