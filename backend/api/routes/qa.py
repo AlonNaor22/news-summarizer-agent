@@ -4,7 +4,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ router = APIRouter()
 
 class QuestionRequest(BaseModel):
     """Request model for asking a question."""
-    question: str
+    question: str = Field(..., min_length=1, max_length=2000)
 
 
 class QuestionResponse(BaseModel):

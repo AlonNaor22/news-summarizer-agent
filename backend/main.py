@@ -14,13 +14,7 @@ Or from the backend directory:
 import logging
 import sys
 import os
-import io
 from dotenv import load_dotenv
-
-# Fix Windows console encoding for unicode characters
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Get the project root directory (parent of backend)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
