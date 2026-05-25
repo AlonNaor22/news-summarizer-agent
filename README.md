@@ -35,6 +35,30 @@ An AI-powered news aggregator that fetches the latest news articles from multipl
 - **Chat Interface**: Ask questions about your news in a conversational UI
 - **Per-Source Coverage Breakdown**: See how different sources cover the same story
 
+## Architecture
+
+```mermaid
+flowchart LR
+    User -->|CLI| CLI_App["CLI\ncli/"]
+    User -->|browser| React["React Frontend"]
+    React -->|HTTP REST| Backend["FastAPI\nbackend/"]
+    CLI_App --> Pipeline
+    Backend --> Pipeline
+
+    subgraph Pipeline["src/ Processing Pipeline"]
+        direction LR
+        Fetch["news_fetcher"] --> Sum["summarizer"]
+        Sum --> Cat["categorizer"]
+        Cat --> Tag["tagger"]
+        Tag --> Sent["sentiment"]
+        Sent --> QA["qa_chain"]
+    end
+
+    Fetch --> RSS["BBC · NPR · Reuters\nRSS feeds"]
+    Fetch --> NewsAPI["NewsAPI"]
+    Sum & Cat & Tag & Sent & QA --> Claude["Claude API\nclaude-sonnet"]
+```
+
 ## Quick Start (Web Interface)
 
 ### Prerequisites
