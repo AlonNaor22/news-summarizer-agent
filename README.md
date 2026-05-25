@@ -303,7 +303,7 @@ Full API documentation available at http://localhost:8000/docs
 ## Running Tests
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e .[dev]   # installs the package + pytest
 pytest tests/ -v
 ```
 
