@@ -59,6 +59,35 @@ flowchart LR
     Sum & Cat & Tag & Sent & QA --> Claude["Claude API\nclaude-sonnet"]
 ```
 
+## How It Works
+
+### Article Processing Pipeline
+
+Each fetch request runs articles through a sequential pipeline of Claude-powered steps:
+
+```mermaid
+flowchart LR
+    RSS["RSS / NewsAPI"] --> Fetch["news_fetcher\nparse & normalise"]
+    Fetch --> Sum["summarizer\n2–3 sentence summary"]
+    Sum --> Cat["categorizer\nPrimary + Secondary topics"]
+    Cat --> Tag["tagger\nkeywords · people · orgs"]
+    Tag --> Sent["sentiment\npositive / neutral / negative"]
+    Sent --> Store["in-memory store\napp_state.articles"]
+```
+
+### Q&A Flow
+
+When you ask a question, the loaded articles become the LLM context:
+
+```mermaid
+flowchart LR
+    Q["User Question"] --> QAChain["qa_chain.py\n(conversation memory)"]
+    QAChain --> Context["All Loaded Articles\nas formatted context"]
+    Context --> Claude["Claude API"]
+    Claude --> A["Answer"]
+    A --> QAChain
+```
+
 ## Quick Start (Web Interface)
 
 ### Prerequisites
