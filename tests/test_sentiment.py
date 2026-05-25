@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 import src.sentiment as sentiment
 from src.sentiment import SentimentResult
@@ -92,3 +93,18 @@ def test_analyze_sentiments_handles_llm_error():
     assert len(results) == 1
     assert results[0].sentiment == "neutral"
     assert results[0].sentiment_confidence == "low"
+
+
+# ---------------------------------------------------------------------------
+# SentimentResult Pydantic model — malformed structured-output edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_sentiment_result_rejects_invalid_sentiment():
+    with pytest.raises(ValidationError):
+        SentimentResult(sentiment="unknown", confidence="high", reason="test")
+
+
+def test_sentiment_result_rejects_invalid_confidence():
+    with pytest.raises(ValidationError):
+        SentimentResult(sentiment="positive", confidence="very_high", reason="test")

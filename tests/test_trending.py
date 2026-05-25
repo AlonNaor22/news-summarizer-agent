@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 import src.trending as trending
 from src.trending import Trend, TrendList
@@ -89,3 +90,29 @@ def test_detect_trends_llm_error_falls_back_to_empty():
     assert result["llm_trends"] == []
     # Statistical trends should still be present
     assert "keyword_trends" in result
+
+
+# ---------------------------------------------------------------------------
+# Trend / TrendList Pydantic model — malformed structured-output edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_trend_rejects_invalid_strength():
+    with pytest.raises(ValidationError):
+        Trend(name="AI Boom", strength="extreme", description="AI is booming.")
+
+
+def test_trend_list_accepts_empty_trends():
+    # Empty trends list is a valid edge case (Claude found no trends)
+    result = TrendList(trends=[])
+    assert result.trends == []
+
+
+def test_trend_keywords_are_lowercased_by_validator():
+    trend = Trend(
+        name="Tech",
+        strength="high",
+        description="Technology is growing.",
+        keywords=["AI", "Machine Learning", ""],
+    )
+    assert trend.keywords == ["ai", "machine learning"]
