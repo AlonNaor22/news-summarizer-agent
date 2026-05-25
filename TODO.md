@@ -26,32 +26,6 @@
 - [x] 🟢 ~~[src/__init__.py](src/__init__.py) is a tutorial comment with no code~~ — replaced with a one-line docstring.
 - [x] 🟢 ~~Print statements are used as logging throughout `src/` ([summarizer.py:190](src/summarizer.py:190), [news_fetcher.py:80](src/news_fetcher.py:80), etc.). Replace with `logging.getLogger(__name__)` — library code shouldn't print.~~ — added `import logging` + `logger = logging.getLogger(__name__)` to all 9 `src/` modules; replaced every progress/warning/error `print()` with `logger.info` / `logger.warning` / `logger.error`; `__main__` test blocks left untouched. Added `logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")` to [main.py](main.py) and [backend/main.py](backend/main.py). All 40 tests pass.
 
-```
-Prompt for a new chat (model: Sonnet)
--------------------------------------
-Replace print() calls in src/ modules with proper logging.
-Library code shouldn't print to stdout.
-
-At the top of each src/*.py file add:
-    import logging
-    logger = logging.getLogger(__name__)
-
-Replace every print(...) with logger.info / logger.warning /
-logger.error based on context. Progress messages like
-"Summarizing: ..." are .info; errors caught in try/except should
-be .warning or .error.
-
-Do NOT replace print() in:
-- The `if __name__ == "__main__":` test blocks at the bottom of
-  each file
-- main.py (CLI is allowed to print to stdout)
-- backend/main.py (uvicorn handles its own logging)
-
-After: confirm pytest tests/ still passes. Optionally add
-logging.basicConfig(level=logging.INFO) in main.py and
-backend/main.py so users see the messages.
-```
-
 ## 2. Error Handling
 
 - [ ] 🔴 [src/news_fetcher.py:81](src/news_fetcher.py:81) — `feedparser.parse(feed_url)` has **no timeout**. A slow RSS feed will hang the entire fetch. Wrap with `requests.get(url, timeout=10)` and pass bytes to feedparser.
