@@ -2,7 +2,9 @@ from unittest.mock import MagicMock, patch
 
 from src.categorizer import (
     MultiCategoryResult,
+    categorize_article,
     categorize_article_multi,
+    categorize_articles,
     clean_category,
     group_by_category,
 )
@@ -101,3 +103,61 @@ class TestGroupByCategory:
         articles = [_make_article(title="No category article")]
         grouped = group_by_category(articles)
         assert "Other" in grouped
+
+
+class TestCategorizeArticle:
+    def test_sets_category_from_llm_response(self):
+        article = _make_article(title="Apple AI chip", summary="Apple released a new AI chip.")
+
+        mock_chain = MagicMock()
+        mock_chain.invoke.return_value = "Technology"
+
+        with patch("src.categorizer.create_categorize_chain", return_value=mock_chain):
+            result = categorize_article(article)
+
+        assert result.category == "Technology"
+        mock_chain.invoke.assert_called_once()
+
+    def test_missing_summary_returns_other_without_llm_call(self):
+        # No summary and no description → short-circuit, no LLM call
+        article = _make_article(title="No content article")
+        mock_chain = MagicMock()
+
+        with patch("src.categorizer.create_categorize_chain", return_value=mock_chain):
+            result = categorize_article(article)
+
+        assert result.category == "Other"
+        mock_chain.invoke.assert_not_called()
+
+
+class TestCategorizeArticles:
+    def test_batch_sets_all_categories(self):
+        articles = [
+            _make_article(title="Tech news", summary="Apple released a new AI chip."),
+            _make_article(title="Election results", summary="Congress passed a new bill."),
+        ]
+
+        mock_chain = MagicMock()
+        mock_chain.invoke.side_effect = ["Technology", "Politics"]
+
+        with patch("src.categorizer.create_categorize_chain", return_value=mock_chain):
+            result = categorize_articles(articles)
+
+        assert result[0].category == "Technology"
+        assert result[1].category == "Politics"
+
+    def test_per_item_error_falls_back_to_other(self):
+        articles = [
+            _make_article(title="A1", summary="Tech news about AI."),
+            _make_article(title="A2", summary="Economic data released."),
+        ]
+
+        mock_chain = MagicMock()
+        mock_chain.invoke.side_effect = [RuntimeError("LLM unavailable"), "Business"]
+
+        with patch("src.categorizer.create_categorize_chain", return_value=mock_chain):
+            result = categorize_articles(articles)
+
+        assert len(result) == 2
+        assert result[0].category == "Other"  # fallback on error
+        assert result[1].category == "Business"
