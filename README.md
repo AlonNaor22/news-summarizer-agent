@@ -1,10 +1,11 @@
 [![CI](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 # News Summarizer Agent
 
-An AI-powered news aggregator that fetches the latest news articles from multiple sources, summarizes them using Claude AI, categorizes them by topic, analyzes sentiment, detects trends, and allows you to ask follow-up questions about current events.
+> Fetch, summarize, and chat with the latest news — powered by Claude AI.
 
-**Now with a modern React web interface!**
+Pull articles from RSS feeds (BBC, NPR, Reuters) or NewsAPI, run them through a Claude-powered pipeline that summarizes, categorizes, tags, and scores sentiment for each one, then ask natural-language questions about what's happening in the world. Available as a React web UI **and** a terminal CLI.
 
 ## Features
 
