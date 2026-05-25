@@ -74,9 +74,19 @@ def test_root_returns_200():
     assert resp.status_code == 200
 
 
-def test_health_returns_200():
+def test_health_returns_200_when_key_set():
     resp = client.get("/api/health")
     assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "healthy"
+    assert data["checks"]["anthropic_key"] == "set"
+
+
+def test_health_returns_503_when_key_missing(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    resp = client.get("/api/health")
+    assert resp.status_code == 503
+    assert resp.json()["status"] == "unhealthy"
 
 
 # ---------------------------------------------------------------------------

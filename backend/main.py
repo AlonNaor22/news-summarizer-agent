@@ -74,8 +74,14 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    """Health check endpoint — verifies critical dependencies are configured."""
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "reason": "ANTHROPIC_API_KEY not configured"},
+        )
+    return {"status": "healthy", "checks": {"anthropic_key": "set"}}
 
 
 if __name__ == "__main__":
