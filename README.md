@@ -1,4 +1,4 @@
-[![CI](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml)
 
 # News Summarizer Agent
 
