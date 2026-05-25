@@ -38,6 +38,18 @@ frontend/node_modules/
 # Build output
 frontend/dist/
 
+# macOS metadata
+.DS_Store
+
+# Test and coverage artefacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build / packaging artefacts
+dist/
+*.egg-info/
+
 # Misc
 .claude/
 nul
