@@ -10,31 +10,7 @@
 
 ## 1. Code Quality
 
-- [ ] 🔴 Split [main.py](main.py) (1571 lines, `NewsSummarizerAgent` class) into focused modules — at minimum `cli/commands.py`, `cli/display.py`, `cli/state.py`, `cli/main.py`. A single-file CLI of this size is the first thing a reviewer will mention.
-
-```
-Prompt for a new chat (model: Opus)
------------------------------------
-Split main.py (1571 lines) into focused modules. The single
-NewsSummarizerAgent class mixes business logic, display (print +
-box-drawing), command parsing (the process_command if/elif chain),
-and state (articles + qa_chain + caches).
-
-Create:
-- cli/display.py — box-drawing, headers, table formatting helpers
-- cli/commands.py — process_command + per-command handlers
-- cli/state.py — AgentState dataclass holding articles + caches + qa_chain
-- cli/main.py — run() loop + entry point
-- main.py stays at the repo root as a thin shim that imports
-  cli.main and calls it, so `python main.py` still works.
-
-Constraints: all 40 existing tests (pytest tests/) must still pass;
-the CLI must behave identically — no command rename, no output
-change. Do not modify src/ modules.
-
-Verify by running `python main.py` and exercising at least help,
-fetch, show, quit.
-```
+- [x] 🔴 ~~Split main.py (1571 lines, `NewsSummarizerAgent` class) into focused modules~~ — replaced the god-class with a [cli/](cli/) package: [state.py](cli/state.py) (`AgentState` dataclass for articles + qa_chain + caches), [display.py](cli/display.py) (`header`/`hr` helpers + welcome/help screens), [commands.py](cli/commands.py) (per-command handlers + `process_command` dispatcher), and [main.py](cli/main.py) (`run()` loop + `main()` entry). Root [main.py](main.py) is a 9-line shim. Output is byte-identical to the original under diff; all 40 tests pass.
 
 - [x] 🔴 ~~Stop re-creating the `ChatAnthropic` LLM inside every per-article call~~ — each `src/` module now has a lazy `_chain` singleton (e.g. [summarizer.py:121](src/summarizer.py:121)), so the LLM client is built once per process instead of once per article.
 - [x] 🔴 ~~Remove the duplicated `sys.path.append(...)` hack~~ — added [pyproject.toml](pyproject.toml) (installable with `pip install -e .`) and stripped the path hack from all 9 `src/` files and all 7 `backend/api/` files. The single remaining hack lives in [backend/main.py](backend/main.py) so `uvicorn backend.main:app` keeps working without an install step.
@@ -286,17 +262,7 @@ Whichever you pick, confirm pytest tests/ still passes. The
 architectural CHOICE is the portfolio-relevant part — document it.
 ```
 
-- [ ] 🔴 [main.py](main.py) `NewsSummarizerAgent` mixes business logic, display rendering, command parsing, and state management. Extract `Display` (all the `print` calls and box-drawing), `CommandRouter` (the giant `process_command` if/elif chain), and `AgentState` (articles + caches + qa_chain).
-
-```
-Prompt for a new chat (model: Opus)
------------------------------------
-This task overlaps with "Split main.py" in section 1 — do that
-task and this one is satisfied. The cli/display.py +
-cli/commands.py + cli/state.py split IS the Display + CommandRouter
-+ AgentState separation. Mark this checkbox when section 1's
-split task is done.
-```
+- [x] 🔴 ~~Extract `Display`, `CommandRouter`, and `AgentState` from `NewsSummarizerAgent`~~ — satisfied by the section-1 split above ([cli/display.py](cli/display.py) + [cli/commands.py](cli/commands.py) + [cli/state.py](cli/state.py)).
 
 - [ ] 🔴 The backend duplicates the orchestration logic from `main.py`'s `fetch_news`. Both call `summarize_articles → categorize_articles → tag_articles → analyze_sentiments` in sequence. Extract this to `src/pipeline.py` and call it from both entry points.
 
