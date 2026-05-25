@@ -91,6 +91,7 @@ class NewsQAChain:
         """Initialize with empty article list, empty history, and a built chain."""
         self.articles: list[Article] = []
         self.chat_history: list = []
+        self._articles_context: str = ""
         self.llm = self._create_llm()
         self.chain = self._create_chain()
 
@@ -116,6 +117,7 @@ class NewsQAChain:
         """Store the articles to answer questions over and reset chat history."""
         self.articles = articles
         self.chat_history = []
+        self._articles_context = self._format_articles_for_context()
 
         logger.info("Loaded %d articles into Q&A system", len(articles))
 
@@ -161,15 +163,12 @@ Summary: {article.summary or article.description or 'No summary available'}
         if not self.articles:
             return "No articles loaded. Please load articles first."
 
-        # Format articles for context
-        articles_context = self._format_articles_for_context()
-
         # Call the chain with:
-        # - articles_context: The news articles
+        # - articles_context: The news articles (pre-built in load_articles)
         # - chat_history: Previous conversation
         # - question: Current question
         response = self.chain.invoke({
-            "articles_context": articles_context,
+            "articles_context": self._articles_context,
             "chat_history": self.chat_history,
             "question": question
         })
