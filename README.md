@@ -62,8 +62,10 @@ An AI-powered news aggregator that fetches the latest news articles from multipl
    # macOS/Linux
    source venv/bin/activate
 
-   # Install Python dependencies
+   # Core CLI dependencies
    pip install -r requirements.txt
+
+   # Backend (FastAPI) dependencies
    pip install -r backend/requirements.txt
    ```
 
