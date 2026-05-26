@@ -14,7 +14,10 @@ Or from the backend directory:
 import logging
 import sys
 import os
+import time
+import uuid
 from dotenv import load_dotenv
+from pythonjsonlogger import json as jsonlogger
 
 # Get the project root directory (parent of backend)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,13 +32,17 @@ if BACKEND_DIR not in sys.path:
 # Load .env from project root before any module that reads env vars
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+_handler = logging.StreamHandler()
+_handler.setFormatter(jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import articles, sentiment, trending, similarity, comparison, qa
 from config import CORS_ORIGINS
+
+logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -52,6 +59,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    start = time.perf_counter()
+    response = await call_next(request)
+    latency_ms = round((time.perf_counter() - start) * 1000, 1)
+    logger.info(
+        "request",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status": response.status_code,
+            "latency_ms": latency_ms,
+        },
+    )
+    response.headers["X-Request-Id"] = request_id
+    return response
+
 
 # Include routers
 app.include_router(articles.router, prefix="/api", tags=["Articles"])
