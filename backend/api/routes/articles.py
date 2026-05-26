@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ from src.models import Article
 from src.news_fetcher import fetch_news
 from src.pipeline import process_articles
 
-from api.dependencies import get_app_state
+from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
 
 router = APIRouter()
@@ -28,7 +28,11 @@ class FetchRequest(BaseModel):
 
 @router.post("/fetch")
 @limiter.limit("3/minute")
-def fetch_articles(request: Request, body: FetchRequest):
+def fetch_articles(
+    request: Request,
+    body: FetchRequest,
+    state: AppState = Depends(get_session_state),
+):
     """Fetch raw articles and (optionally) run the full processing pipeline."""
     try:
         articles = fetch_news(
@@ -45,7 +49,6 @@ def fetch_articles(request: Request, body: FetchRequest):
         for i, article in enumerate(articles):
             article.id = i
 
-        state = get_app_state()
         state.articles = articles
 
         state.qa_chain.load_articles(articles)
@@ -70,9 +73,9 @@ async def get_articles(
     keyword: Optional[str] = Query(None, description="Filter by keyword"),
     limit: int = Query(50, description="Maximum articles to return"),
     offset: int = Query(0, description="Offset for pagination"),
+    state: AppState = Depends(get_session_state),
 ):
     """Return stored articles, applying any of the supported filters."""
-    state = get_app_state()
     articles: list[Article] = list(state.articles)
 
     if category:
@@ -105,10 +108,11 @@ async def get_articles(
 
 
 @router.get("/articles/{article_id}")
-async def get_article(article_id: int):
+async def get_article(
+    article_id: int,
+    state: AppState = Depends(get_session_state),
+):
     """Get a single article by ID."""
-    state = get_app_state()
-
     if article_id < 0 or article_id >= len(state.articles):
         raise HTTPException(status_code=404, detail="Article not found")
 
@@ -119,9 +123,9 @@ async def get_article(article_id: int):
 async def search_articles(
     q: str = Query(..., description="Search query"),
     limit: int = Query(20, description="Maximum results"),
+    state: AppState = Depends(get_session_state),
 ):
     """Search articles by title, summary, or keywords."""
-    state = get_app_state()
     query_lower = q.lower()
 
     results = []
@@ -152,9 +156,8 @@ async def search_articles(
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(state: AppState = Depends(get_session_state)):
     """Get statistics about the stored articles."""
-    state = get_app_state()
     articles = state.articles
 
     if not articles:
@@ -190,8 +193,7 @@ async def get_stats():
 
 
 @router.delete("/articles")
-async def clear_articles():
-    """Clear all stored articles."""
-    state = get_app_state()
+async def clear_articles(state: AppState = Depends(get_session_state)):
+    """Clear all stored articles for this session."""
     state.clear()
     return {"message": "All articles cleared"}

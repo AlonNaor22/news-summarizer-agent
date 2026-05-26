@@ -2,12 +2,48 @@ import axios from 'axios';
 import type { Article, Stats, SentimentOverview, TrendData, StoryComparison, Story, Source, ChatMessage, QaStatus } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const SESSION_STORAGE_KEY = 'news-summarizer:session-id';
+
+function readStoredSessionId(): string | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(SESSION_STORAGE_KEY) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSessionId(id: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SESSION_STORAGE_KEY, id);
+    }
+  } catch {
+    /* localStorage unavailable (private mode, SSR) — fall through */
+  }
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+api.interceptors.request.use((config) => {
+  const sessionId = readStoredSessionId();
+  if (sessionId) {
+    config.headers = config.headers ?? {};
+    (config.headers as Record<string, string>)['X-Session-Id'] = sessionId;
+  }
+  return config;
+});
+
+api.interceptors.response.use((response) => {
+  const minted = response.headers?.['x-session-id'];
+  if (typeof minted === 'string' && minted && minted !== readStoredSessionId()) {
+    writeStoredSessionId(minted);
+  }
+  return response;
 });
 
 export const articlesApi = {

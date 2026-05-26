@@ -24,18 +24,23 @@ from src.models import Article
 import sys as _sys
 deps = _sys.modules.get("api.dependencies") or _sys.modules["backend.api.dependencies"]
 
+# Fixed UUID for all tests in this module — every request the client makes
+# carries this header, so requests share one AppState (matching the singleton
+# semantics the suite was originally written against).
+TEST_SESSION_ID = "00000000-0000-4000-8000-000000000000"
+
 
 @pytest.fixture(autouse=True)
-def reset_app_state():
-    """Reset global app state before each test."""
-    deps.app_state.clear()
+def reset_session_store():
+    """Drop every session before and after each test."""
+    deps.session_store.clear_all()
     yield
-    deps.app_state.clear()
+    deps.session_store.clear_all()
 
 
 @pytest.fixture
 def seeded_state():
-    """Seed app_state with two canned articles."""
+    """Seed the test-session AppState with two canned articles."""
     articles = [
         Article(
             title="AI breakthrough announced",
@@ -56,12 +61,13 @@ def seeded_state():
             sentiment="negative",
         ),
     ]
-    deps.app_state.articles = articles
-    deps.app_state.qa_chain.load_articles(articles)
-    return deps.app_state
+    state = deps.session_store.get_or_create(TEST_SESSION_ID)
+    state.articles = articles
+    state.qa_chain.load_articles(articles)
+    return state
 
 
-client = TestClient(app)
+client = TestClient(app, headers={"X-Session-Id": TEST_SESSION_ID})
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +93,59 @@ def test_health_returns_503_when_key_missing(monkeypatch):
     resp = client.get("/api/health")
     assert resp.status_code == 503
     assert resp.json()["status"] == "unhealthy"
+
+
+# ---------------------------------------------------------------------------
+# Session headers — per-session state contract
+# ---------------------------------------------------------------------------
+
+
+def test_session_id_echoed_in_response_header():
+    resp = client.get("/api/articles")
+    assert resp.headers.get("X-Session-Id") == TEST_SESSION_ID
+
+
+def test_server_mints_session_id_when_header_missing():
+    bare_client = TestClient(app)
+    resp = bare_client.get("/api/articles")
+    minted = resp.headers.get("X-Session-Id")
+    assert minted and minted != TEST_SESSION_ID
+    assert len(minted) == 36  # uuid4 string length
+
+
+def test_server_mints_session_id_when_header_invalid():
+    bare_client = TestClient(app, headers={"X-Session-Id": "not-a-uuid"})
+    resp = bare_client.get("/api/articles")
+    minted = resp.headers.get("X-Session-Id")
+    assert minted and minted != "not-a-uuid"
+    assert len(minted) == 36
+
+
+def test_sessions_are_isolated():
+    """Two clients with different session IDs see independent articles."""
+    sid_a = "11111111-1111-4111-8111-111111111111"
+    sid_b = "22222222-2222-4222-8222-222222222222"
+
+    state_a = deps.session_store.get_or_create(sid_a)
+    state_a.articles = [
+        Article(title="A only", source="X", url="http://a", summary="a")
+    ]
+
+    state_b = deps.session_store.get_or_create(sid_b)
+    state_b.articles = [
+        Article(title="B only", source="Y", url="http://b", summary="b"),
+        Article(title="B second", source="Y", url="http://b2", summary="b2"),
+    ]
+
+    client_a = TestClient(app, headers={"X-Session-Id": sid_a})
+    client_b = TestClient(app, headers={"X-Session-Id": sid_b})
+
+    resp_a = client_a.get("/api/articles")
+    resp_b = client_b.get("/api/articles")
+
+    assert resp_a.json()["total"] == 1
+    assert resp_a.json()["articles"][0]["title"] == "A only"
+    assert resp_b.json()["total"] == 2
 
 
 # ---------------------------------------------------------------------------

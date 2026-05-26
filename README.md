@@ -73,7 +73,7 @@ flowchart LR
     Sum --> Cat["categorizer\nPrimary + Secondary topics"]
     Cat --> Tag["tagger\nkeywords · people · orgs"]
     Tag --> Sent["sentiment\npositive / neutral / negative"]
-    Sent --> Store["in-memory store\napp_state.articles"]
+    Sent --> Store["session AppState\n(keyed by X-Session-Id)"]
 ```
 
 ### Q&A Flow
@@ -364,15 +364,31 @@ npm install
 ### CORS errors in browser
 Make sure the backend is running on port 8000 before starting the frontend.
 
+## Multi-User Session Management
+
+Each client gets its own isolated `AppState` (articles + Q&A memory + derived caches), keyed by an `X-Session-Id` header. The store lives in [backend/api/dependencies.py](backend/api/dependencies.py).
+
+**Contract**:
+- The frontend generates a UUID once, persists it in `localStorage`, and sends it on every request as `X-Session-Id`.
+- If the header is missing or malformed, the backend mints a fresh UUID and returns it on the response (also `X-Session-Id`); the frontend interceptor saves it back to `localStorage`.
+- Every response carries `X-Session-Id` so any client can discover the session it landed on.
+
+**Eviction**:
+- A `SessionStore` (thread-safe `dict[session_id, AppState]`) tracks last activity per session.
+- A background asyncio task started in the FastAPI lifespan handler sweeps every 5 minutes and evicts sessions idle for more than 1 hour (`SESSION_TTL_SECONDS`).
+- `DELETE /api/articles` is the explicit reset for a single session.
+
+**Why not Redis (or sticky cookies, or DB-backed sessions)?** For a portfolio demo, an in-process dict gives the same shape (a session-scoped store with TTL) without an extra service to provision or document. Swapping the `SessionStore` for a Redis-backed implementation would touch one file. The point of the abstraction is that the route handlers don't care.
+
 ## Limitations / Known Issues
 
-These are honest trade-offs in the current implementation — the kind of things you'd address before scaling beyond a personal demo:
+Honest trade-offs in the current implementation — the kind of things you'd address before scaling beyond a personal demo:
 
-- **In-memory state**: articles and Q&A history are held in RAM and lost whenever the backend restarts.
-- **Single-user backend**: `app_state` in `backend/api/dependencies.py` is a module-level singleton — multiple concurrent users share the same articles and conversation history.
-- **No authentication**: any client that can reach the server can read, overwrite, or clear articles.
-- **No rate limiting**: `POST /api/fetch` fires one Claude API call per article; a large fetch can rack up API costs quickly.
-- **Sequential processing**: `summarize_articles`, `categorize_articles`, `tag_articles`, and `analyze_sentiments` loop articles one at a time; `asyncio.gather` + `.ainvoke` could reduce wall-clock time 5–10×.
+- **In-memory state**: sessions live in process RAM and are wiped on backend restart. Swap `SessionStore` for a Redis-backed equivalent if you need persistence.
+- **Single-process only**: the session dict isn't shared across workers, so `uvicorn --workers N > 1` would route the same session ID to different states depending on which worker handles the request. Stick to a single worker, or move sessions to Redis.
+- **No authentication**: session IDs are bearer-token-equivalent. Anyone with a session ID has full access to that session's data; share a screen-recording with the header visible and you've shared the session.
+- **No per-session rate limiting**: rate limits are by client IP (`slowapi`). Two browsers behind the same NAT share the budget.
+- **Sequential LLM calls**: `summarize_articles`, `categorize_articles`, `tag_articles`, and `analyze_sentiments` loop articles one at a time; `asyncio.gather` + `.ainvoke` could reduce wall-clock time 5–10×.
 
 ## Contributing
 

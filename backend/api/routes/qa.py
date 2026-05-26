@@ -3,12 +3,12 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-from api.dependencies import get_app_state
+from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
 
 router = APIRouter()
@@ -28,10 +28,12 @@ class QuestionResponse(BaseModel):
 
 @router.post("/qa/ask")
 @limiter.limit("30/minute")
-def ask_question(request: Request, body: QuestionRequest):
+def ask_question(
+    request: Request,
+    body: QuestionRequest,
+    state: AppState = Depends(get_session_state),
+):
     """Ask a question about the loaded articles with conversation memory."""
-    state = get_app_state()
-
     if not state.articles:
         raise HTTPException(
             status_code=400,
@@ -54,11 +56,10 @@ def ask_question(request: Request, body: QuestionRequest):
 
 
 @router.get("/qa/history")
-async def get_conversation_history():
+async def get_conversation_history(state: AppState = Depends(get_session_state)):
     """
     Get the current conversation history.
     """
-    state = get_app_state()
     history = state.qa_chain.get_history()
 
     formatted_history = []
@@ -76,25 +77,22 @@ async def get_conversation_history():
 
 
 @router.delete("/qa/history")
-async def clear_conversation_history():
+async def clear_conversation_history(state: AppState = Depends(get_session_state)):
     """
     Clear the conversation history.
 
     Use this to start a fresh conversation about the same articles.
     """
-    state = get_app_state()
     state.qa_chain.clear_history()
 
     return {"message": "Conversation history cleared"}
 
 
 @router.get("/qa/status")
-async def get_qa_status():
+async def get_qa_status(state: AppState = Depends(get_session_state)):
     """
     Get the current status of the Q&A system.
     """
-    state = get_app_state()
-
     return {
         "articles_loaded": len(state.articles),
         "history_length": len(state.qa_chain.get_history()),

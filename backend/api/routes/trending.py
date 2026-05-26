@@ -1,10 +1,10 @@
 """Trending API routes — trending topics and keyword analysis."""
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.trending import detect_trends, get_trending_keywords, get_trending_entities
 
-from api.dependencies import get_app_state
+from api.dependencies import AppState, get_session_state
 
 router = APIRouter()
 
@@ -12,7 +12,8 @@ router = APIRouter()
 @router.get("/trending")
 def get_trending_topics(
     use_llm: bool = Query(True, description="Use AI for smart trend detection"),
-    top_n: int = Query(10, description="Number of top keywords to return")
+    top_n: int = Query(10, description="Number of top keywords to return"),
+    state: AppState = Depends(get_session_state),
 ):
     """
     Get trending topics across all articles.
@@ -22,7 +23,6 @@ def get_trending_topics(
 
     Returns keyword trends, entity trends, and AI-detected themes.
     """
-    state = get_app_state()
     articles = state.articles
 
     if not articles:
@@ -33,10 +33,8 @@ def get_trending_topics(
             "total_articles": 0
         }
 
-    # Detect trends
     trends = detect_trends(articles, use_llm=use_llm)
 
-    # Store in app state
     state.trends = trends
 
     return {
@@ -47,7 +45,8 @@ def get_trending_topics(
 
 @router.get("/trending/fast")
 async def get_trending_fast(
-    top_n: int = Query(10, description="Number of top keywords to return")
+    top_n: int = Query(10, description="Number of top keywords to return"),
+    state: AppState = Depends(get_session_state),
 ):
     """
     Get trending keywords quickly (no AI analysis).
@@ -55,7 +54,6 @@ async def get_trending_fast(
     This is faster and doesn't use API calls, but only provides
     keyword frequency analysis without intelligent theme detection.
     """
-    state = get_app_state()
     articles = state.articles
 
     if not articles:
@@ -77,12 +75,12 @@ async def get_trending_fast(
 
 @router.get("/trending/keywords")
 async def get_keywords(
-    top_n: int = Query(20, description="Number of keywords to return")
+    top_n: int = Query(20, description="Number of keywords to return"),
+    state: AppState = Depends(get_session_state),
 ):
     """
     Get trending keywords with article counts.
     """
-    state = get_app_state()
     articles = state.articles
 
     if not articles:
@@ -98,12 +96,12 @@ async def get_keywords(
 
 @router.get("/trending/entities")
 async def get_entities(
-    top_n: int = Query(10, description="Number of entities per type")
+    top_n: int = Query(10, description="Number of entities per type"),
+    state: AppState = Depends(get_session_state),
 ):
     """
     Get trending people, organizations, and locations.
     """
-    state = get_app_state()
     articles = state.articles
 
     if not articles:
@@ -123,9 +121,11 @@ async def get_entities(
 
 
 @router.get("/trending/keyword/{keyword}")
-async def get_articles_by_keyword(keyword: str):
+async def get_articles_by_keyword(
+    keyword: str,
+    state: AppState = Depends(get_session_state),
+):
     """Return all articles tagged with the given keyword (case-insensitive)."""
-    state = get_app_state()
     keyword_lower = keyword.lower()
 
     matching = []

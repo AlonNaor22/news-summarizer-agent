@@ -1,6 +1,6 @@
 """Comparison API routes — comparing how different sources cover the same story."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import List
 
@@ -11,7 +11,7 @@ from src.comparator import (
     summarize_bias_findings
 )
 
-from api.dependencies import get_app_state
+from api.dependencies import AppState, get_session_state
 
 router = APIRouter()
 
@@ -22,10 +22,8 @@ class CompareRequest(BaseModel):
 
 
 @router.get("/comparison/stories")
-async def get_same_story_groups():
+async def get_same_story_groups(state: AppState = Depends(get_session_state)):
     """Find groups of articles that cover the same story across different sources."""
-    state = get_app_state()
-
     if len(state.articles) < 2:
         return {"stories": [], "total": 0}
 
@@ -51,7 +49,7 @@ async def get_same_story_groups():
 
 
 @router.get("/comparison")
-def compare_all():
+def compare_all(state: AppState = Depends(get_session_state)):
     """
     Compare all stories that have multiple source coverage.
 
@@ -61,8 +59,6 @@ def compare_all():
     - Different emphases
     - Potential bias
     """
-    state = get_app_state()
-
     if len(state.articles) < 2:
         return {"comparisons": [], "total": 0}
 
@@ -75,15 +71,15 @@ def compare_all():
 
 
 @router.post("/comparison/specific")
-async def compare_specific_articles(request: CompareRequest):
+async def compare_specific_articles(
+    request: CompareRequest,
+    state: AppState = Depends(get_session_state),
+):
     """
     Compare specific articles by their IDs.
 
     Use this when you want to manually select which articles to compare.
     """
-    state = get_app_state()
-
-    # Validate article IDs
     articles_to_compare = []
     for aid in request.article_ids:
         if aid < 0 or aid >= len(state.articles):
@@ -102,15 +98,13 @@ async def compare_specific_articles(request: CompareRequest):
 
 
 @router.get("/comparison/bias")
-async def get_bias_analysis():
+async def get_bias_analysis(state: AppState = Depends(get_session_state)):
     """
     Get bias analysis summary across all comparisons.
 
     Shows which sources have been flagged for potential bias
     and their overall tone distribution.
     """
-    state = get_app_state()
-
     if len(state.articles) < 2:
         return {
             "sources_analyzed": [],
@@ -118,7 +112,6 @@ async def get_bias_analysis():
             "tone_distribution": {}
         }
 
-    # First get all comparisons
     comparisons = compare_all_stories(state.articles)
 
     if not comparisons:
@@ -129,17 +122,14 @@ async def get_bias_analysis():
             "message": "No multi-source stories found for bias analysis"
         }
 
-    # Summarize bias findings
     bias_summary = summarize_bias_findings(comparisons)
 
     return bias_summary
 
 
 @router.get("/sources")
-async def get_sources():
+async def get_sources(state: AppState = Depends(get_session_state)):
     """List all distinct news sources in the current article set."""
-    state = get_app_state()
-
     sources: dict[str, dict] = {}
     for article in state.articles:
         source = article.source or "Unknown"
