@@ -1,6 +1,11 @@
 import './LoadingSpinner.css';
 
-function LoadingSpinner({ size = 'medium', message = 'Loading...' }) {
+interface Props {
+  size?: 'small' | 'medium' | 'large';
+  message?: string;
+}
+
+function LoadingSpinner({ size = 'medium', message = 'Loading...' }: Props) {
   return (
     <div className="loading-container">
       <div className={`spinner ${size}`}></div>

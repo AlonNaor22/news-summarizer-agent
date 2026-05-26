@@ -1,6 +1,12 @@
 import './TrendingKeywords.css';
+import type { KeywordTrend } from '../types';
 
-function TrendingKeywords({ keywords, onKeywordClick }) {
+interface Props {
+  keywords: KeywordTrend[];
+  onKeywordClick?: (keyword: string) => void;
+}
+
+function TrendingKeywords({ keywords, onKeywordClick }: Props) {
   if (!keywords || keywords.length === 0) {
     return <p className="no-keywords">No trending keywords yet</p>;
   }

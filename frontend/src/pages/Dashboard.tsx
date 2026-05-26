@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import { articlesApi, sentimentApi, trendingApi } from '../services/api';
+import type { Stats, SentimentOverview, KeywordTrend } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TrendingKeywords from '../components/TrendingKeywords';
 import './Dashboard.css';
 
 function Dashboard() {
-  const [stats, setStats] = useState(null);
-  const [sentiment, setSentiment] = useState(null);
-  const [keywords, setKeywords] = useState([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [sentiment, setSentiment] = useState<SentimentOverview | null>(null);
+  const [keywords, setKeywords] = useState<KeywordTrend[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [fetchSource, setFetchSource] = useState('rss');
   const [maxArticles, setMaxArticles] = useState(5);
 
@@ -47,7 +49,8 @@ function Dashboard() {
       console.log('Fetch response:', response.data);
       await loadData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error fetching articles');
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      setError(detail || 'Error fetching articles');
       console.error('Fetch error:', err);
     } finally {
       setFetching(false);

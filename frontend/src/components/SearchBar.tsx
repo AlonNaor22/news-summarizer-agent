@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import './SearchBar.css';
 
-function SearchBar({ onSearch, placeholder = 'Search articles...' }) {
+interface Props {
+  onSearch: (query: string) => void;
+  placeholder?: string;
+}
+
+function SearchBar({ onSearch, placeholder = 'Search articles...' }: Props) {
   const [query, setQuery] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
       onSearch(query.trim());

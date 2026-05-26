@@ -1,8 +1,13 @@
 import { Link } from 'react-router-dom';
 import SentimentBadge from './SentimentBadge';
+import type { Article } from '../types';
 import './ArticleCard.css';
 
-function ArticleCard({ article }) {
+interface Props {
+  article: Article;
+}
+
+function ArticleCard({ article }: Props) {
   const {
     id,
     title,

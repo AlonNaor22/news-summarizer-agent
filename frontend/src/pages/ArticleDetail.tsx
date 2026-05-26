@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { articlesApi, similarityApi } from '../services/api';
+import type { Article } from '../types';
 import SentimentBadge from '../components/SentimentBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import './ArticleDetail.css';
 
 function ArticleDetail() {
-  const { id } = useParams();
-  const [article, setArticle] = useState(null);
-  const [similar, setSimilar] = useState([]);
+  const { id } = useParams<{ id: string }>();
+  const [article, setArticle] = useState<Article | null>(null);
+  const [similar, setSimilar] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadArticle = async () => {

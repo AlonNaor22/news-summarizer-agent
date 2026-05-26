@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { comparisonApi } from '../services/api';
+import type { StoryComparison, Story, Source } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SentimentBadge from '../components/SentimentBadge';
 import './Compare.css';
 
 function Compare() {
-  const [stories, setStories] = useState([]);
-  const [comparisons, setComparisons] = useState([]);
-  const [sources, setSources] = useState([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [comparisons, setComparisons] = useState<StoryComparison[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
-  const [selectedComparison, setSelectedComparison] = useState(null);
+  const [selectedComparison, setSelectedComparison] = useState<StoryComparison | null>(null);
 
   useEffect(() => {
     const loadData = async () => {

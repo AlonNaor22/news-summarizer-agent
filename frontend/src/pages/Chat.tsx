@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import { qaApi } from '../services/api';
+import type { ChatMessage, QaStatus } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import './Chat.css';
 
 function Chat() {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState(null);
-  const messagesEndRef = useRef(null);
+  const [status, setStatus] = useState<QaStatus | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadStatus();
@@ -42,24 +44,22 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
     const question = input.trim();
     setInput('');
 
-    // Add user message immediately
     setMessages(prev => [...prev, { role: 'user', content: question }]);
     setLoading(true);
 
     try {
       const response = await qaApi.ask(question);
-
-      // Add assistant response
       setMessages(prev => [...prev, { role: 'assistant', content: response.data.answer }]);
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || 'Sorry, something went wrong.';
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      const errorMessage = detail || 'Sorry, something went wrong.';
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${errorMessage}` }]);
     } finally {
       setLoading(false);

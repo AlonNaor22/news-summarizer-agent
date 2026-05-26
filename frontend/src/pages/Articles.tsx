@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { articlesApi } from '../services/api';
+import type { Article, Stats } from '../types';
 import ArticleCard from '../components/ArticleCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -8,10 +9,10 @@ import './Articles.css';
 
 function Articles() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [articles, setArticles] = useState([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   const category = searchParams.get('category') || '';
   const sentiment = searchParams.get('sentiment') || '';
@@ -21,7 +22,7 @@ function Articles() {
   const loadArticles = async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params: Record<string, string> = {};
       if (category) params.category = category;
       if (sentiment) params.sentiment = sentiment;
       if (source) params.source = source;
@@ -46,11 +47,11 @@ function Articles() {
     loadArticles();
   }, [category, sentiment, source, keyword]);
 
-  const handleSearch = async (query) => {
+  const handleSearch = (query: string) => {
     setSearchParams({ keyword: query });
   };
 
-  const handleFilterChange = (type, value) => {
+  const handleFilterChange = (type: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
     if (value) {
       newParams.set(type, value);

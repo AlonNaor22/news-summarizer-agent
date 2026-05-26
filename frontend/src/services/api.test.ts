@@ -16,7 +16,7 @@ vi.mock('axios', () => ({
   },
 }));
 
-import { articlesApi } from './api.js';
+import { articlesApi } from './api';
 
 describe('articlesApi', () => {
   beforeEach(() => {

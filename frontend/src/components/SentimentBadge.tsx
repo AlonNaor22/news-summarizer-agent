@@ -1,6 +1,11 @@
 import './SentimentBadge.css';
 
-function SentimentBadge({ sentiment, showLabel = true }) {
+interface Props {
+  sentiment?: string;
+  showLabel?: boolean;
+}
+
+function SentimentBadge({ sentiment, showLabel = true }: Props) {
   const getEmoji = () => {
     switch (sentiment?.toLowerCase()) {
       case 'positive':
