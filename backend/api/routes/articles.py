@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ from src.news_fetcher import fetch_news
 from src.pipeline import process_articles
 
 from api.dependencies import get_app_state
+from api.limiter import limiter
 
 router = APIRouter()
 
@@ -26,18 +27,19 @@ class FetchRequest(BaseModel):
 
 
 @router.post("/fetch")
-def fetch_articles(request: FetchRequest):
+@limiter.limit("3/minute")
+def fetch_articles(request: Request, body: FetchRequest):
     """Fetch raw articles and (optionally) run the full processing pipeline."""
     try:
         articles = fetch_news(
-            source=request.source,
-            max_per_source=request.max_per_source,
+            source=body.source,
+            max_per_source=body.max_per_source,
         )
 
         if not articles:
             return {"articles": [], "total": 0, "message": "No articles fetched"}
 
-        if request.process:
+        if body.process:
             articles = process_articles(articles)
 
         for i, article in enumerate(articles):

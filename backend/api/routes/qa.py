@@ -3,12 +3,13 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 from api.dependencies import get_app_state
+from api.limiter import limiter
 
 router = APIRouter()
 
@@ -26,18 +27,9 @@ class QuestionResponse(BaseModel):
 
 
 @router.post("/qa/ask")
-def ask_question(request: QuestionRequest):
-    """
-    Ask a question about the loaded articles.
-
-    The Q&A system remembers conversation history, allowing for
-    follow-up questions that reference previous context.
-
-    Example questions:
-    - "What are the main technology news today?"
-    - "Tell me more about that" (follow-up)
-    - "How do the tech articles compare to business news?"
-    """
+@limiter.limit("30/minute")
+def ask_question(request: Request, body: QuestionRequest):
+    """Ask a question about the loaded articles with conversation memory."""
     state = get_app_state()
 
     if not state.articles:
@@ -47,10 +39,10 @@ def ask_question(request: QuestionRequest):
         )
 
     try:
-        answer = state.qa_chain.ask(request.question)
+        answer = state.qa_chain.ask(body.question)
 
         return {
-            "question": request.question,
+            "question": body.question,
             "answer": answer,
             "article_count": len(state.articles)
         }

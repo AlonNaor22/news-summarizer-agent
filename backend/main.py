@@ -38,8 +38,11 @@ logging.basicConfig(level=logging.INFO, handlers=[_handler])
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from api.routes import articles, sentiment, trending, similarity, comparison, qa
+from api.limiter import limiter
 from config import CORS_ORIGINS
 
 logger = logging.getLogger(__name__)
@@ -50,6 +53,9 @@ app = FastAPI(
     description="API for fetching, summarizing, and analyzing news articles",
     version="1.0.0"
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS to allow frontend requests
 app.add_middleware(
