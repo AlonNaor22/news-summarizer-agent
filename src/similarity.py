@@ -1,52 +1,3 @@
-# =====================================================
-# ARTICLE SIMILARITY MODULE
-# =====================================================
-#
-# This module finds related/similar articles.
-#
-# WHY LINK SIMILAR ARTICLES?
-# --------------------------
-# 1. Help users discover related stories
-# 2. Group articles about the same event
-# 3. Show different perspectives on the same topic
-# 4. Build a "recommended articles" feature
-#
-# UNDERSTANDING SIMILARITY:
-# -------------------------
-# Two articles are "similar" if they:
-# - Cover the same topic (AI, climate, sports)
-# - Mention the same people/organizations
-# - Describe the same event from different angles
-# - Share common keywords or themes
-#
-# THREE APPROACHES TO SIMILARITY:
-# -------------------------------
-#
-# 1. KEYWORD OVERLAP (Simple)
-#    - Count how many keywords two articles share
-#    - Fast and free, but shallow understanding
-#    - "AI" and "artificial intelligence" seen as different
-#
-# 2. EMBEDDINGS (Advanced - explained but not implemented)
-#    - Convert text to numerical vectors
-#    - Similar texts have similar vectors
-#    - Requires embedding model (OpenAI, Cohere, etc.)
-#
-# 3. LLM-BASED (Smart)
-#    - Ask Claude to identify relationships
-#    - Best understanding, but costs API calls
-#    - Can explain WHY articles are related
-#
-# We implement approaches 1 and 3 in this module.
-#
-# LANGCHAIN CONCEPTS IN THIS MODULE:
-# ----------------------------------
-# 1. Pairwise Comparison - Comparing items against each other
-# 2. Structured Output - Getting relationship data from LLM
-# 3. Embeddings Concept - Understanding vector similarity
-#
-# =====================================================
-
 import logging
 from typing import Any, Literal, Union
 
@@ -123,27 +74,6 @@ def _get_field(article: ArticleLike, name: str, default: Any) -> Any:
         return article.get(name, default)
     return getattr(article, name, default)
 
-
-# =====================================================
-# APPROACH 1: KEYWORD-BASED SIMILARITY
-# =====================================================
-#
-# This is the simplest approach: count shared keywords.
-#
-# HOW IT WORKS:
-# -------------
-# Article A keywords: ["ai", "technology", "apple"]
-# Article B keywords: ["ai", "google", "technology"]
-# Shared keywords: ["ai", "technology"] = 2 shared
-#
-# Similarity score = shared / total unique keywords
-#                  = 2 / 4 = 0.5 (50% similar)
-#
-# This is called JACCARD SIMILARITY:
-#   J(A,B) = |A ∩ B| / |A ∪ B|
-#   (intersection size / union size)
-#
-# =====================================================
 
 def calculate_keyword_similarity(article_a: ArticleLike, article_b: ArticleLike) -> float:
     """Return the Jaccard keyword similarity between two articles (0-1)."""
@@ -223,10 +153,6 @@ def calculate_combined_similarity(article_a: ArticleLike, article_b: ArticleLike
     }
 
 
-# =====================================================
-# FINDING SIMILAR ARTICLES (Statistical)
-# =====================================================
-
 def find_similar_articles(
     target_article: Article,
     all_articles: list[Article],
@@ -284,74 +210,6 @@ def find_all_related_pairs(
     return pairs
 
 
-# =====================================================
-# ABOUT EMBEDDINGS (Educational Explanation)
-# =====================================================
-#
-# WHAT ARE EMBEDDINGS?
-# --------------------
-# Embeddings convert text into numerical vectors (lists of numbers).
-#
-# Example:
-#   "Apple releases new iPhone" → [0.12, -0.45, 0.78, ..., 0.33]
-#   "Google launches smartphone" → [0.15, -0.42, 0.81, ..., 0.29]
-#
-# Similar texts have similar vectors!
-#
-# WHY VECTORS?
-# ------------
-# Computers can easily compare numbers:
-# - Calculate distance between vectors
-# - Closer vectors = more similar texts
-#
-# COSINE SIMILARITY:
-# ------------------
-# The most common way to compare embeddings.
-# Measures the angle between two vectors.
-#
-#   similarity = cos(θ) = (A · B) / (||A|| × ||B||)
-#
-# Result ranges from -1 to 1:
-#   1.0  = identical direction (very similar)
-#   0.0  = perpendicular (unrelated)
-#   -1.0 = opposite direction (opposite meaning)
-#
-# LANGCHAIN EMBEDDINGS:
-# ---------------------
-# LangChain supports many embedding models:
-#
-#   from langchain_openai import OpenAIEmbeddings
-#   embeddings = OpenAIEmbeddings()
-#   vector = embeddings.embed_query("Hello world")
-#
-# We DON'T implement embeddings here because:
-# 1. Requires additional API key (OpenAI, Cohere, etc.)
-# 2. Adds complexity
-# 3. Our keyword approach works well for this project
-#
-# But for production systems with many articles,
-# embeddings are the preferred approach!
-#
-# =====================================================
-
-
-# =====================================================
-# APPROACH 2: LLM-BASED SIMILARITY
-# =====================================================
-#
-# Ask Claude to analyze relationships between articles.
-# This is smarter than keyword matching because Claude
-# understands MEANING, not just word overlap.
-#
-# Example where LLM beats keywords:
-# - Article A: "Electric vehicle sales surge"
-# - Article B: "Tesla stock reaches new high"
-#
-# Keyword overlap: 0 (no shared keywords!)
-# LLM understanding: "Both about EV industry success"
-#
-# =====================================================
-
 SIMILARITY_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are an expert at analyzing relationships between news articles.
 
@@ -374,15 +232,7 @@ don't include them in any pair. Provide one short sentence explaining each conne
 
 
 def create_similarity_llm():
-    """
-    Create Claude LLM for similarity analysis.
-
-    WHY TEMPERATURE = 0.2?
-    ----------------------
-    We want Claude to find relationships, but not invent
-    connections that don't exist. Low temperature keeps
-    it grounded in what's actually in the articles.
-    """
+    """Create Claude LLM for similarity analysis."""
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
@@ -472,31 +322,11 @@ def find_related_articles_llm(articles: list[Article]) -> list[EnrichedRelatedPa
     return enriched
 
 
-# =====================================================
-# COMBINED SIMILARITY ANALYSIS
-# =====================================================
-
 def analyze_article_relationships(
     articles: list[Article],
     use_llm: bool = True,
 ) -> dict:
-    """
-    Comprehensive relationship analysis using both approaches.
-
-    PARAMETERS:
-    -----------
-    articles : list[dict]
-        All articles to analyze
-    use_llm : bool
-        Whether to use Claude for smart analysis
-
-    RETURNS:
-    --------
-    dict with:
-        - statistical_pairs: Pairs found by keyword overlap
-        - llm_pairs: Pairs found by Claude (if use_llm=True)
-        - article_connections: For each article, its related articles
-    """
+    """Comprehensive relationship analysis using both statistical and LLM approaches."""
 
     logger.info("=" * 50)
     logger.info("ANALYZING ARTICLE RELATIONSHIPS")
@@ -508,30 +338,19 @@ def analyze_article_relationships(
         "article_connections": {}
     }
 
-    # -------------------------------------------------
-    # Statistical Analysis (Fast, Free)
-    # -------------------------------------------------
     logger.info("Finding relationships by keyword overlap...")
     result["statistical_pairs"] = find_all_related_pairs(
         articles, threshold=SIMILARITY_THRESHOLDS["find_similar"]
     )
     logger.info("Found %d related pairs", len(result["statistical_pairs"]))
 
-    # -------------------------------------------------
-    # LLM Analysis (Smart)
-    # -------------------------------------------------
     if use_llm and len(articles) >= 2:
         result["llm_pairs"] = find_related_articles_llm(articles)
 
-    # -------------------------------------------------
-    # Build connections map
-    # -------------------------------------------------
-    # For each article, list its related articles
     for i, article in enumerate(articles):
         title = article.title or f"Article {i + 1}"
         connections = []
 
-        # From statistical analysis
         for pair in result["statistical_pairs"]:
             if pair["article_a_index"] == i:
                 connections.append({
@@ -546,7 +365,6 @@ def analyze_article_relationships(
                     "score": pair["similarity"]["overall"]
                 })
 
-        # From LLM analysis
         for pair in result["llm_pairs"]:
             if pair.article_a_index == i:
                 connections.append({
@@ -571,10 +389,6 @@ def analyze_article_relationships(
 
     return result
 
-
-# =====================================================
-# DISPLAY FUNCTIONS
-# =====================================================
 
 def display_similar_articles(target: Article, similar: list[Article]) -> None:
     """Log articles similar to ``target`` along with their similarity stats."""
@@ -609,7 +423,6 @@ def display_all_relationships(analysis: dict) -> None:
     logger.info("ARTICLE RELATIONSHIPS")
     logger.info("=" * 60)
 
-    # Display LLM-found relationships (most insightful)
     if analysis.get("llm_pairs"):
         logger.info("AI-DETECTED RELATIONSHIPS")
         logger.info("-" * 40)
@@ -626,7 +439,6 @@ def display_all_relationships(analysis: dict) -> None:
             logger.info('     "%s..."', pair.article_b_title[:40])
             logger.info("     %s", pair.explanation)
 
-    # Display statistical relationships
     if analysis.get("statistical_pairs"):
         logger.info("KEYWORD-BASED RELATIONSHIPS")
         logger.info("-" * 40)
@@ -642,91 +454,3 @@ def display_all_relationships(analysis: dict) -> None:
                 logger.info("     Shared: %s", ", ".join(shared))
 
     logger.info("=" * 60)
-
-
-# =====================================================
-# TEST CODE
-# =====================================================
-
-if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("TESTING ARTICLE SIMILARITY")
-    print("=" * 60)
-
-    test_articles = [
-        Article(
-            title="Apple Unveils New AI-Powered iPhone Features",
-            summary="Apple announced revolutionary AI capabilities including smart assistants and photo editing.",
-            category="Technology",
-            keywords=["artificial intelligence", "smartphones", "apple", "technology"],
-            people=["Tim Cook"],
-            organizations=["Apple"],
-            locations=["California"],
-            source="Test",
-            url="",
-        ),
-        Article(
-            title="Google Responds with AI Chatbot Update",
-            summary="Google upgraded its AI assistant to compete with Apple's new features.",
-            category="Technology",
-            keywords=["artificial intelligence", "chatbot", "google", "technology"],
-            people=["Sundar Pichai"],
-            organizations=["Google"],
-            locations=["Mountain View"],
-            source="Test",
-            url="",
-        ),
-        Article(
-            title="Tech Stocks Surge on AI Announcements",
-            summary="Technology stocks rallied as investors bet on AI growth from major companies.",
-            category="Business",
-            keywords=["stocks", "investment", "technology", "artificial intelligence"],
-            organizations=["Apple", "Google", "NVIDIA"],
-            locations=["Wall Street"],
-            source="Test",
-            url="",
-        ),
-        Article(
-            title="Climate Summit Reaches Historic Agreement",
-            summary="World leaders agreed to ambitious emission targets at the Paris summit.",
-            category="World News",
-            keywords=["climate change", "environment", "policy", "international"],
-            people=["Emmanuel Macron"],
-            organizations=["United Nations"],
-            locations=["Paris"],
-            source="Test",
-            url="",
-        ),
-        Article(
-            title="Renewable Energy Investment Breaks Records",
-            summary="Global investment in clean energy reached $500 billion this year.",
-            category="Business",
-            keywords=["climate change", "renewable energy", "investment", "environment"],
-            source="Test",
-            url="",
-        ),
-    ]
-
-    # -------------------------------------------------
-    # Test 1: Find similar articles to first one
-    # -------------------------------------------------
-    print("\n--- Test 1: Find Similar Articles ---")
-    target = test_articles[0]
-    similar = find_similar_articles(target, test_articles)
-    display_similar_articles(target, similar)
-
-    # -------------------------------------------------
-    # Test 2: Find all relationships
-    # -------------------------------------------------
-    print("\n\n--- Test 2: All Relationships ---")
-    analysis = analyze_article_relationships(test_articles, use_llm=True)
-    display_all_relationships(analysis)
-
-    # -------------------------------------------------
-    # Test 3: Show connections for each article
-    # -------------------------------------------------
-    print("\n\n--- Test 3: Article Connection Map ---")
-    for title, connections in analysis["article_connections"].items():
-        if connections:
-            print(f"\n📰 \"{title[:40]}...\"")
-            print(f"   Connected to {len(connections)} article(s)")

@@ -245,26 +245,3 @@ def fetch_news(source: str = "rss", max_per_source: int = None) -> list[Article]
 
     logger.warning("Unknown source: %s. Valid options: rss, newsapi, both", source)
     return []
-
-
-if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("TESTING NEWS FETCHER")
-    print("=" * 60)
-
-    print("\n--- Test 1: Fetch from BBC News ---")
-    bbc_articles = fetch_from_rss(
-        "http://feeds.bbci.co.uk/news/rss.xml",
-        "BBC News",
-        max_articles=3,
-    )
-
-    if bbc_articles:
-        display_articles(bbc_articles)
-
-    print("\n\n--- Test 2: Fetch from ALL sources ---")
-    all_articles = fetch_all_news(max_per_source=2)
-    print(f"\nFetched {len(all_articles)} total articles!")
-
-    print("\nShowing first 3 articles:")
-    display_articles(all_articles[:3])

@@ -1,43 +1,3 @@
-# =====================================================
-# MULTI-SOURCE COMPARATOR MODULE
-# =====================================================
-#
-# This module compares how different news sources
-# cover the SAME story or event.
-#
-# WHY COMPARE SOURCES?
-# --------------------
-# Different news outlets often cover the same event but:
-# - Emphasize different aspects
-# - Use different language (tone, word choice)
-# - Include/exclude certain facts
-# - Frame the story from different perspectives
-#
-# Example: A new government policy announcement
-# - Source A: "Historic reform will help millions"
-# - Source B: "Controversial policy faces opposition"
-# - Source C: "New policy details released today"
-#
-# Same event, three different framings!
-#
-# WHAT THIS MODULE DOES:
-# ----------------------
-# 1. Groups articles covering the same story
-# 2. Compares coverage between sources
-# 3. Identifies differences in:
-#    - Facts included/excluded
-#    - Tone and sentiment
-#    - Emphasis and framing
-#    - Potential bias
-#
-# LANGCHAIN CONCEPTS IN THIS MODULE:
-# ----------------------------------
-# 1. Multi-Document Comparison - Comparing several docs about same topic
-# 2. Complex Structured Output - Detailed comparison results
-# 3. Chain Building - Using previous modules (similarity, sentiment)
-#
-# =====================================================
-
 import logging
 from typing import Literal
 
@@ -118,22 +78,6 @@ class StoryComparison(BaseModel):
     error: str | None = None
 
 
-# =====================================================
-# STEP 1: GROUP ARTICLES BY STORY
-# =====================================================
-#
-# Before comparing, we need to find articles that cover
-# the SAME story. This is different from "similar" -
-# we want articles about the EXACT SAME event.
-#
-# Criteria for "same story":
-# - Very high similarity score (> 0.5)
-# - Same category
-# - Published around the same time
-# - Similar entities mentioned
-#
-# =====================================================
-
 def group_articles_by_story(
     articles: list[Article],
     similarity_threshold: float = SIMILARITY_THRESHOLDS["same_story"],
@@ -201,24 +145,6 @@ def find_same_story_articles(
     return stories
 
 
-# =====================================================
-# STEP 2: LLM-BASED COMPARISON
-# =====================================================
-#
-# Once we have articles about the same story, we ask
-# Claude to compare them in depth.
-#
-# Claude will analyze:
-# - What facts each source includes/excludes
-# - How each source frames the story
-# - Differences in tone and language
-# - Potential bias or perspective
-#
-# This is MULTI-DOCUMENT COMPARISON - a powerful
-# LangChain pattern for analyzing related documents.
-#
-# =====================================================
-
 COMPARISON_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are an expert media analyst who compares how different news sources cover the same story.
 
@@ -246,26 +172,7 @@ Rules:
 
 
 def create_comparison_llm():
-    """
-    Create Claude LLM for source comparison.
-
-    WHY TEMPERATURE = 0.2?
-    ----------------------
-    Comparison requires careful, objective analysis.
-    We don't want Claude to be creative or speculative.
-    Low temperature = sticks to what's in the articles.
-
-    WHY HIGH MAX_TOKENS?
-    --------------------
-    Comparison output is detailed:
-    - Summary
-    - Common facts
-    - Analysis for each source
-    - Key differences
-    - Assessment
-
-    We need room for thorough analysis.
-    """
+    """Create Claude LLM for source comparison."""
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY not found!")
 
@@ -315,10 +222,6 @@ KEYWORDS: {', '.join(keywords) if keywords else 'None'}
 
     return "\n".join(formatted)
 
-
-# =====================================================
-# MAIN COMPARISON FUNCTION
-# =====================================================
 
 def compare_sources(articles: list[Article]) -> StoryComparison:
     """Run a deep comparison of how each source covered the same story."""
@@ -386,23 +289,10 @@ def compare_all_stories(articles: list[Article]) -> list[StoryComparison]:
     return comparisons
 
 
-# =====================================================
-# QUICK COMPARISON (Without grouping)
-# =====================================================
-#
-# Sometimes you already know which articles to compare.
-# These functions let you compare specific articles directly.
-#
-# =====================================================
-
 def quick_compare(article_a: Article, article_b: Article) -> StoryComparison:
     """Compare two specific articles directly without group detection."""
     return compare_sources([article_a, article_b])
 
-
-# =====================================================
-# DISPLAY FUNCTIONS
-# =====================================================
 
 def display_comparison(comparison: StoryComparison) -> None:
     """Log a source comparison in readable format."""
@@ -473,25 +363,8 @@ def display_all_comparisons(comparisons: list[StoryComparison]) -> None:
         display_comparison(comparison)
 
 
-# =====================================================
-# BIAS DETECTION HELPERS
-# =====================================================
-#
-# These functions help identify potential bias patterns.
-#
-# =====================================================
-
 def summarize_bias_findings(comparisons: list[StoryComparison]) -> dict:
-    """
-    Summarize bias findings across all comparisons.
-
-    RETURNS:
-    --------
-    dict with:
-        - sources_analyzed: List of all sources
-        - bias_mentions: Dict of source → bias findings
-        - tone_distribution: Dict of source → tone counts
-    """
+    """Summarize bias findings across all comparisons."""
 
     sources_analyzed: set[str] = set()
     bias_mentions: dict[str, list[str]] = {}
@@ -516,118 +389,3 @@ def summarize_bias_findings(comparisons: list[StoryComparison]) -> dict:
         "bias_mentions": bias_mentions,
         "tone_distribution": tone_distribution,
     }
-
-
-# =====================================================
-# TEST CODE
-# =====================================================
-
-if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("TESTING MULTI-SOURCE COMPARATOR")
-    print("=" * 60)
-
-    test_articles = [
-        Article(
-            title="Tech Giants Announce Major AI Partnership",
-            summary="""Apple, Google, and Microsoft announced a historic partnership
-            to develop AI safety standards. The collaboration, first of its kind,
-            aims to ensure responsible AI development. Industry experts praised
-            the move as a significant step forward for technology governance.
-            The companies will share research and establish common guidelines.""",
-            source="TechCrunch",
-            category="Technology",
-            keywords=["artificial intelligence", "partnership", "technology", "safety"],
-            organizations=["Apple", "Google", "Microsoft"],
-            sentiment="positive",
-            url="",
-        ),
-        Article(
-            title="Big Tech Forms AI Alliance Amid Regulatory Pressure",
-            summary="""Facing increasing regulatory scrutiny, Apple, Google, and
-            Microsoft have formed an alliance on AI development. Critics suggest
-            the partnership may be an attempt to preempt government regulation.
-            The announcement comes as Congress considers new AI oversight laws.
-            Consumer advocates expressed concerns about industry self-regulation.""",
-            source="The Guardian",
-            category="Technology",
-            keywords=["artificial intelligence", "regulation", "technology", "government"],
-            organizations=["Apple", "Google", "Microsoft", "Congress"],
-            sentiment="neutral",
-            url="",
-        ),
-        Article(
-            title="Apple, Google, Microsoft Unite on AI Standards",
-            summary="""Three major technology companies announced a joint initiative
-            on AI safety standards today. The partnership will focus on developing
-            guidelines for responsible AI deployment. Representatives from each
-            company will form a working group to draft initial recommendations.
-            The initiative is expected to produce its first report within six months.""",
-            source="Reuters",
-            category="Technology",
-            keywords=["artificial intelligence", "standards", "technology"],
-            organizations=["Apple", "Google", "Microsoft"],
-            sentiment="neutral",
-            url="",
-        ),
-        Article(
-            title="Climate Summit Yields Historic Agreement",
-            summary="""World leaders reached a landmark climate agreement in Paris,
-            committing to aggressive emission reduction targets. The deal includes
-            $100 billion in funding for developing nations. Environmental groups
-            celebrated the agreement as a turning point in climate action.""",
-            source="BBC News",
-            category="World News",
-            keywords=["climate change", "environment", "international", "policy"],
-            organizations=["United Nations"],
-            locations=["Paris"],
-            sentiment="positive",
-            url="",
-        ),
-        Article(
-            title="Climate Deal Raises Economic Concerns",
-            summary="""The Paris climate agreement announced today has drawn mixed
-            reactions. While environmental groups applauded the targets, business
-            leaders warned of potential economic impacts. Some industries face
-            significant compliance costs under the new framework. Critics argue
-            the agreement may hurt American competitiveness.""",
-            source="Fox Business",
-            category="World News",
-            keywords=["climate change", "economy", "business", "policy"],
-            locations=["Paris"],
-            sentiment="negative",
-            url="",
-        ),
-    ]
-
-    # -------------------------------------------------
-    # Test 1: Find same-story groups
-    # -------------------------------------------------
-    print("\n--- Test 1: Finding Same-Story Groups ---")
-    stories = find_same_story_articles(test_articles)
-    print(f"\nFound {len(stories)} stories with multiple sources:")
-    for story in stories:
-        print(f"  • {story['story_title'][:40]}...")
-        print(f"    Sources: {', '.join(story['sources'])}")
-
-    # -------------------------------------------------
-    # Test 2: Compare all stories
-    # -------------------------------------------------
-    print("\n\n--- Test 2: Comparing All Stories ---")
-    comparisons = compare_all_stories(test_articles)
-    display_all_comparisons(comparisons)
-
-    # -------------------------------------------------
-    # Test 3: Bias summary
-    # -------------------------------------------------
-    if comparisons:
-        print("\n\n--- Test 3: Bias Summary ---")
-        bias_summary = summarize_bias_findings(comparisons)
-        print(f"\nSources analyzed: {', '.join(bias_summary['sources_analyzed'])}")
-
-        if bias_summary["bias_mentions"]:
-            print("\nBias mentions by source:")
-            for source, biases in bias_summary["bias_mentions"].items():
-                print(f"  {source}: {biases}")
-        else:
-            print("\nNo significant bias detected across sources.")

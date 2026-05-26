@@ -1,17 +1,3 @@
-# =====================================================
-# CATEGORIZER MODULE
-# =====================================================
-#
-# This module classifies articles into categories using Claude.
-#
-# KEY DIFFERENCE FROM SUMMARIZER:
-# - Summarizer: "Write a paragraph about this"
-# - Categorizer: "Pick ONE option from this list"
-#
-# This is called CLASSIFICATION - a common AI task.
-#
-# =====================================================
-
 import logging
 
 from langchain_anthropic import ChatAnthropic
@@ -56,18 +42,6 @@ class MultiCategoryResult(BaseModel):
         return cleaned
 
 
-# =====================================================
-# THE CATEGORIZATION PROMPTS
-# =====================================================
-#
-# We have TWO prompts:
-# 1. CATEGORIZE_PROMPT - Single category (simple)
-# 2. MULTI_CATEGORIZE_PROMPT - Primary + Secondary (detailed)
-#
-# =====================================================
-
-# ----- SINGLE CATEGORY PROMPT -----
-# Use this when you only need one category per article
 CATEGORIZE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a news article classifier. Your job is to categorize news articles into exactly ONE category.
 
@@ -90,9 +64,6 @@ Category:""")
 ])
 
 
-# ----- MULTI-CATEGORY PROMPT -----
-# Use this when articles might fit multiple categories
-# Returns a PRIMARY category and optional SECONDARY categories
 MULTI_CATEGORIZE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a news article classifier. Articles often cover multiple topics.
 Your job is to identify the PRIMARY category and any SECONDARY categories.
@@ -141,43 +112,15 @@ def create_categorize_chain():
 
 
 def clean_category(raw_category: str) -> str:
-    """
-    Clean up Claude's response to get just the category.
-
-    WHY DO WE NEED THIS?
-    --------------------
-    Even with strict prompts, AI might respond:
-    - "Technology"           ← Perfect
-    - "Technology."          ← Has a period
-    - "The category is Technology"  ← Extra words
-    - "technology"           ← Wrong case
-
-    This function handles these edge cases.
-
-    PARAMETERS:
-    -----------
-    raw_category : str
-        Raw response from Claude
-
-    RETURNS:
-    --------
-    str
-        Cleaned category name that matches our list
-    """
-    # Remove whitespace and common punctuation
+    """Normalize a raw LLM category response to one of the known CATEGORIES, or 'Other'."""
     cleaned = raw_category.strip().strip(".,!?\"'")
 
-    # Check if it matches any of our categories (case-insensitive)
     for category in CATEGORIES:
         if category.lower() == cleaned.lower():
-            return category  # Return the properly-cased version
-
-        # Also check if the category is contained in the response
-        # This handles "The category is Technology" → "Technology"
+            return category
         if category.lower() in cleaned.lower():
             return category
 
-    # If no match found, return "Other"
     return "Other"
 
 
@@ -238,14 +181,6 @@ def categorize_articles(articles: list[Article]) -> list[Article]:
     return categorized
 
 
-# =====================================================
-# MULTI-CATEGORY FUNCTIONS
-# =====================================================
-#
-# These functions handle articles that fit multiple categories.
-# They return both PRIMARY and SECONDARY categories.
-#
-# =====================================================
 
 def create_multi_categorize_chain():
     """Return the (lazily-built) multi-category chain.
@@ -374,79 +309,3 @@ def display_by_category(articles: list[Article]) -> None:
             logger.info("  • %s...", article.title[:50])
             logger.info("    Source: %s", article.source)
 
-
-# =====================================================
-# TEST CODE
-# =====================================================
-
-if __name__ == "__main__":
-    print("\n" + "="*60)
-    print("TESTING CATEGORIZER")
-    print("="*60)
-
-    # -------------------------------------------------
-    # TEST 1: Articles that fit MULTIPLE categories
-    # -------------------------------------------------
-    # These articles intentionally span multiple topics
-    # to demonstrate multi-category classification
-
-    multi_topic_articles = [
-        Article(
-            title="Apple Stock Surges After Revolutionary AI iPhone Announcement",
-            summary="Apple's stock price jumped 15% today after the company unveiled an iPhone with groundbreaking AI features. Wall Street analysts predict the technology could reshape the smartphone industry and boost Apple's market cap significantly.",
-            source="Tech Business Daily",
-            url="",
-        ),
-        Article(
-            title="New Government Policy Aims to Boost Tech Industry with Tax Breaks",
-            summary="Congress passed legislation offering tax incentives for technology companies investing in AI research. The bill, supported by both parties, is expected to create thousands of new jobs in the tech sector.",
-            source="Political Tech News",
-            url="",
-        ),
-        Article(
-            title="Olympic Athlete Uses AI Technology to Break World Record",
-            summary="A sprinter broke the 100-meter world record using AI-powered training systems developed by scientists at MIT. The technology analyzes biomechanics to optimize performance.",
-            source="Sports Science Weekly",
-            url="",
-        ),
-    ]
-
-    print("\n" + "="*60)
-    print("TEST 1: Multi-Category Classification")
-    print("="*60)
-    print("These articles span multiple topics...")
-
-    # Use multi-category classification
-    multi_categorized = categorize_articles_multi(multi_topic_articles)
-    display_multi_categories(multi_categorized)
-
-    # -------------------------------------------------
-    # TEST 2: Standard single-category articles
-    # -------------------------------------------------
-
-    single_topic_articles = [
-        Article(
-            title="Lakers Win Championship in Overtime Thriller",
-            summary="The Los Angeles Lakers defeated the Boston Celtics in a dramatic game 7 overtime victory to claim the NBA championship.",
-            source="Sports Weekly",
-            url="",
-        ),
-        Article(
-            title="Scientists Discover New Species in Amazon",
-            summary="Researchers have identified a previously unknown species of frog in the Amazon rainforest that may have medicinal properties.",
-            source="Science Today",
-            url="",
-        ),
-    ]
-
-    print("\n\n" + "="*60)
-    print("TEST 2: Single-Category Classification")
-    print("="*60)
-    print("These articles have one clear topic...")
-
-    # Use single-category classification
-    single_categorized = categorize_articles(single_topic_articles)
-
-    for article in single_categorized:
-        print(f"\n📰 {article.title}")
-        print(f"   Category: {article.category}")

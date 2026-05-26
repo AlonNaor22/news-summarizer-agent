@@ -1,31 +1,3 @@
-# =====================================================
-# SENTIMENT ANALYSIS MODULE
-# =====================================================
-#
-# This module analyzes the emotional tone of news articles.
-#
-# WHAT IS SENTIMENT ANALYSIS?
-# ---------------------------
-# Sentiment analysis determines whether text expresses:
-# - POSITIVE feelings (good news, optimism, success)
-# - NEGATIVE feelings (bad news, concern, criticism)
-# - NEUTRAL tone (factual, balanced, objective)
-#
-# WHY IS THIS USEFUL FOR NEWS?
-# ----------------------------
-# 1. Understand the tone of coverage
-# 2. Compare how different sources frame the same story
-# 3. Filter news by mood (e.g., "show me positive news")
-# 4. Detect bias in reporting
-#
-# LANGCHAIN CONCEPTS IN THIS MODULE:
-# ----------------------------------
-# 1. Structured Output - Getting specific format from LLM
-# 2. Few-Shot Prompting - Giving examples in the prompt
-# 3. Output Parsing - Converting LLM response to Python data
-#
-# =====================================================
-
 import logging
 from typing import Literal
 
@@ -56,26 +28,6 @@ class SentimentResult(BaseModel):
         description="One-sentence explanation for the chosen sentiment"
     )
 
-
-# =====================================================
-# THE SENTIMENT ANALYSIS PROMPT
-# =====================================================
-#
-# KEY TECHNIQUE: Few-Shot Prompting
-# ---------------------------------
-# We give Claude EXAMPLES of how to classify sentiment.
-# This helps it understand what we consider positive,
-# negative, or neutral in a NEWS context.
-#
-# Why examples matter:
-# - "Stock market crashes" is clearly negative
-# - "Scientists discover cure" is clearly positive
-# - "Government announces policy" could be neutral
-#
-# Without examples, Claude might interpret sentiment
-# differently than we intend.
-#
-# =====================================================
 
 SENTIMENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a sentiment analysis expert for news articles.
@@ -112,24 +64,6 @@ CONTENT: {content}""")
 ])
 
 
-# =====================================================
-# CREATE THE LLM
-# =====================================================
-#
-# WHY LOW TEMPERATURE (0.1)?
-# --------------------------
-# For sentiment analysis, we want CONSISTENCY.
-# The same article should always get the same sentiment.
-#
-# Temperature controls randomness:
-# - 0.0 = Always pick the most likely response (deterministic)
-# - 0.1 = Very slight variation (what we use)
-# - 0.5 = Moderate creativity
-# - 1.0 = High creativity/randomness
-#
-# For classification tasks, low temperature is best.
-#
-# =====================================================
 
 def create_llm():
     """Create Claude LLM configured for sentiment analysis."""
@@ -161,9 +95,6 @@ def create_sentiment_chain():
     return _chain
 
 
-# =====================================================
-# ANALYZE SINGLE ARTICLE
-# =====================================================
 
 @timeit
 def analyze_sentiment(article: Article) -> Article:
@@ -202,9 +133,6 @@ def analyze_sentiment(article: Article) -> Article:
     return article
 
 
-# =====================================================
-# ANALYZE MULTIPLE ARTICLES
-# =====================================================
 
 def analyze_sentiments(articles: list[Article]) -> list[Article]:
     """Run sentiment analysis on every article, defaulting to neutral on error."""
@@ -236,9 +164,6 @@ def analyze_sentiments(articles: list[Article]) -> list[Article]:
     return analyzed
 
 
-# =====================================================
-# HELPER FUNCTIONS
-# =====================================================
 
 def get_sentiment_summary(articles: list[Article]) -> dict:
     """Return per-sentiment counts and a percentage breakdown."""
@@ -310,57 +235,3 @@ def display_sentiment_summary(articles: list[Article]) -> None:
 
     logger.info("  Total articles analyzed: %d", summary["total"])
     logger.info("=" * 60)
-
-
-# =====================================================
-# TEST CODE
-# =====================================================
-
-if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("TESTING SENTIMENT ANALYSIS")
-    print("=" * 60)
-
-    test_articles = [
-        Article(
-            title="Tech Company Reports Record Profits, Plans Major Expansion",
-            summary="""The technology giant announced record-breaking quarterly
-            profits of $50 billion, exceeding analyst expectations by 20%. The CEO
-            revealed plans to hire 10,000 new employees and expand into three new
-            markets. Investors responded positively, with stock prices rising 15%.""",
-            source="Test",
-            url="",
-        ),
-        Article(
-            title="Earthquake Devastates Coastal Region, Thousands Displaced",
-            summary="""A magnitude 7.2 earthquake struck the coastal region early
-            this morning, causing widespread destruction. Initial reports indicate
-            hundreds of casualties and thousands of displaced residents. Emergency
-            services are overwhelmed, and international aid has been requested.""",
-            source="Test",
-            url="",
-        ),
-        Article(
-            title="Government Announces New Environmental Regulations",
-            summary="""The Environmental Protection Agency released new guidelines
-            for industrial emissions that will take effect next year. The regulations
-            set specific limits on carbon output and require annual compliance reports.
-            Industry groups and environmental advocates are reviewing the details.""",
-            source="Test",
-            url="",
-        ),
-    ]
-
-    print("\n--- Analyzing Test Articles ---")
-    analyzed = analyze_sentiments(test_articles)
-
-    print("\n--- Results ---")
-    for article in analyzed:
-        print(f"\n📰 {article.title[:50]}...")
-        emoji = {"positive": "😊", "negative": "😟", "neutral": "😐"}
-        print(f"   Sentiment: {emoji.get(article.sentiment, '😐')} {article.sentiment}")
-        print(f"   Confidence: {article.sentiment_confidence}")
-        print(f"   Reason: {article.sentiment_reason}")
-
-    print("\n--- Summary ---")
-    display_sentiment_summary(analyzed)

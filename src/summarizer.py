@@ -1,17 +1,3 @@
-# =====================================================
-# SUMMARIZER MODULE
-# =====================================================
-#
-# This module uses Claude (via LangChain) to summarize articles.
-#
-# LANGCHAIN CONCEPTS USED:
-#
-# 1. ChatAnthropic - The LLM (AI model) we talk to
-# 2. ChatPromptTemplate - Instructions with placeholders
-# 3. Chain (using |) - Connects prompt → LLM → output
-#
-# =====================================================
-
 import logging
 
 from langchain_anthropic import ChatAnthropic
@@ -26,26 +12,9 @@ from src.timing import timeit
 logger = logging.getLogger(__name__)
 
 
-# =====================================================
-# STEP 1: CREATE THE LLM (The AI Brain)
-# =====================================================
-#
-# ChatAnthropic is LangChain's way to connect to Claude.
-# We configure it with:
-#   - model: Which Claude version to use
-#   - temperature: Creativity level (0=focused, 1=creative)
-#   - max_tokens: Maximum length of response
-#
-# =====================================================
 
 def create_llm():
-    """
-    Create and return a configured Claude LLM instance.
-
-    We put this in a function so we can:
-    1. Check if API key exists before creating
-    2. Reuse the same configuration everywhere
-    """
+    """Create and return a configured Claude LLM instance."""
 
     if not ANTHROPIC_API_KEY:
         raise ValueError(
@@ -63,24 +32,7 @@ def create_llm():
     )
 
 
-# =====================================================
-# STEP 2: CREATE THE PROMPT TEMPLATE
-# =====================================================
-#
-# A prompt template is like a form letter with blanks.
-#
-# Example:
-#   "Dear {name}, thank you for {action}."
-#
-# We fill in {name} and {action} later.
-#
-# For our summarizer, we have {title} and {content}.
-#
-# =====================================================
-
-# This is the instruction we send to Claude
 SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
-    # "system" message sets the AI's role and behavior
     ("system", """You are a professional news summarizer. Your job is to:
 1. Read news articles carefully
 2. Extract the most important information
@@ -93,8 +45,6 @@ Guidelines:
 - Don't add opinions or speculation
 - If the content is unclear, say so"""),
 
-    # "human" message is what the user sends
-    # {title} and {content} are placeholders we fill in later
     ("human", """Please summarize this news article:
 
 TITLE: {title}
@@ -105,22 +55,8 @@ Provide a clear, concise summary:""")
 ])
 
 
-# =====================================================
-# STEP 3: CREATE THE CHAIN
-# =====================================================
-#
-# A "chain" connects components together using the | operator.
-#
-# prompt | llm | parser
-#    ↓      ↓      ↓
-#  Fill   Send   Convert
-#  in     to     response
-#  vars   Claude to string
-#
-# =====================================================
-
-# Lazily-built singleton chain. Reused across all articles in a fetch
-# pipeline instead of paying the LLM client construction cost per article.
+# Lazily-built singleton: reused across all articles instead of paying the LLM
+# client construction cost per article.
 _chain = None
 
 
@@ -132,9 +68,6 @@ def create_summary_chain():
     return _chain
 
 
-# =====================================================
-# STEP 4: THE MAIN SUMMARIZE FUNCTION
-# =====================================================
 
 @timeit
 def summarize_article(article: Article) -> Article:
@@ -200,48 +133,3 @@ def display_summary(article: Article) -> None:
     logger.info("   %s", article.summary or "No summary available")
     logger.info("🔗 %s", article.url)
 
-
-# =====================================================
-# TEST CODE
-# =====================================================
-
-if __name__ == "__main__":
-    print("\n" + "="*60)
-    print("TESTING SUMMARIZER")
-    print("="*60)
-
-    # Test with a sample article
-    test_article = Article(
-        title="Global Leaders Meet to Discuss Climate Action",
-        description="""
-        World leaders from over 150 countries gathered in Geneva today
-        for an emergency summit on climate change. The meeting, which
-        was called after record-breaking temperatures were recorded
-        across three continents last month, aims to establish new
-        emissions targets and funding mechanisms for developing nations.
-
-        The UN Secretary-General opened the summit with a stark warning:
-        "We are running out of time. The decisions we make this week
-        will determine the future of our planet." Key topics on the
-        agenda include carbon pricing, renewable energy investment,
-        and climate adaptation funding.
-
-        Several major economies have already signaled their willingness
-        to increase their commitments, though disagreements remain over
-        how costs should be distributed between developed and developing
-        nations.
-        """,
-        url="https://example.com/climate-summit",
-        source="Test News",
-        published="January 16, 2026",
-    )
-
-    print("\n--- Original Article ---")
-    print(f"Title: {test_article.title}")
-    print(f"Content length: {len(test_article.description)} characters")
-
-    print("\n--- Calling Claude to Summarize ---")
-    result = summarize_article(test_article)
-
-    print("\n--- Result ---")
-    display_summary(result)
