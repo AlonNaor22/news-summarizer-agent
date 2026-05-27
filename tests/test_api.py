@@ -195,6 +195,49 @@ def test_qa_ask_no_articles_returns_400():
 
 
 # ---------------------------------------------------------------------------
+# Q&A streaming (SSE)
+# ---------------------------------------------------------------------------
+
+
+def test_qa_stream_empty_question_returns_422():
+    resp = client.post("/api/qa/ask/stream", json={"question": ""})
+    assert resp.status_code == 422
+
+
+def test_qa_stream_no_articles_returns_400():
+    resp = client.post("/api/qa/ask/stream", json={"question": "What is happening?"})
+    assert resp.status_code == 400
+
+
+def test_qa_stream_emits_sse_chunks(seeded_state):
+    """Patch qa_chain.astream to a fake async generator and assert SSE framing."""
+
+    async def fake_astream(_question):
+        for piece in ["Hello ", "world", "!"]:
+            yield piece
+
+    seeded_state.qa_chain.astream = fake_astream
+
+    with client.stream(
+        "POST",
+        "/api/qa/ask/stream",
+        json={"question": "Say hi"},
+    ) as resp:
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        body = b"".join(resp.iter_bytes()).decode("utf-8")
+
+    # Each chunk arrives as `event: chunk\ndata: {"text": "..."}\n\n`
+    assert 'event: chunk' in body
+    assert '"text": "Hello "' in body
+    assert '"text": "world"' in body
+    assert '"text": "!"' in body
+    # Final event must be `done` with the article count
+    assert 'event: done' in body
+    assert '"article_count": 2' in body
+
+
+# ---------------------------------------------------------------------------
 # Sentiment summary
 # ---------------------------------------------------------------------------
 

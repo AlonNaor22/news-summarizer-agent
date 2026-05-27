@@ -120,9 +120,106 @@ export const comparisonApi = {
   getSources: () => api.get<{ sources: Source[] }>('/sources'),
 };
 
+export interface AskStreamCallbacks {
+  onChunk: (text: string) => void;
+  onDone?: (info: { article_count: number }) => void;
+  onError?: (detail: string) => void;
+  signal?: AbortSignal;
+}
+
+async function askStream(question: string, callbacks: AskStreamCallbacks): Promise<void> {
+  const sessionId = readStoredSessionId();
+  const response = await fetch(`${API_BASE_URL}/qa/ask/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+    },
+    body: JSON.stringify({ question }),
+    signal: callbacks.signal,
+  });
+
+  const mintedSessionId = response.headers.get('x-session-id');
+  if (mintedSessionId && mintedSessionId !== sessionId) {
+    writeStoredSessionId(mintedSessionId);
+  }
+
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const errorBody = await response.json();
+      if (errorBody?.detail) detail = errorBody.detail;
+    } catch {
+      /* response body wasn't JSON — keep the status-line detail */
+    }
+    throw new Error(detail);
+  }
+
+  if (!response.body) {
+    throw new Error('Streaming not supported in this environment.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE messages are separated by blank lines (\n\n). Anything before
+      // the last \n\n is a complete message; keep the remainder in the buffer.
+      let separatorIndex: number;
+      while ((separatorIndex = buffer.indexOf('\n\n')) !== -1) {
+        const rawMessage = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+        const parsed = parseSseMessage(rawMessage);
+        if (!parsed) continue;
+        const { event, data } = parsed;
+
+        if (event === 'chunk' && typeof data?.text === 'string') {
+          callbacks.onChunk(data.text);
+        } else if (event === 'done') {
+          callbacks.onDone?.({ article_count: data?.article_count ?? 0 });
+        } else if (event === 'error') {
+          const detail = typeof data?.detail === 'string' ? data.detail : 'Streaming error.';
+          callbacks.onError?.(detail);
+          return;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function parseSseMessage(raw: string): { event: string; data: any } | null {
+  let event = 'message';
+  const dataLines: string[] = [];
+  for (const line of raw.split('\n')) {
+    if (line.startsWith(':')) continue; // comment
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+  if (!dataLines.length) return null;
+  const dataStr = dataLines.join('\n');
+  try {
+    return { event, data: JSON.parse(dataStr) };
+  } catch {
+    return { event, data: dataStr };
+  }
+}
+
 export const qaApi = {
   ask: (question: string) =>
     api.post<{ question: string; answer: string; article_count: number }>('/qa/ask', { question }),
+
+  askStream,
 
   getHistory: () => api.get<{ history: ChatMessage[]; message_count: number }>('/qa/history'),
 

@@ -1,9 +1,11 @@
 """Q&A API routes — asking questions about articles with conversation memory."""
 
+import json
 import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,62 @@ def ask_question(
         request_id = uuid.uuid4()
         logger.exception("Unhandled error in ask_question [request_id=%s]", request_id)
         raise HTTPException(status_code=500, detail=f"Internal error answering question (id={request_id})")
+
+
+def _sse_event(event_type: str, payload: dict) -> bytes:
+    """Encode a single SSE message: `event: <type>` then `data: <json>` then blank line."""
+    body = json.dumps(payload, ensure_ascii=False)
+    return f"event: {event_type}\ndata: {body}\n\n".encode("utf-8")
+
+
+@router.post("/qa/ask/stream")
+@limiter.limit("30/minute")
+async def ask_question_stream(
+    request: Request,
+    body: QuestionRequest,
+    state: AppState = Depends(get_session_state),
+):
+    """Stream a Q&A answer over Server-Sent Events.
+
+    Emits one `event: chunk` per token (with `{"text": "..."}`), then a final
+    `event: done` carrying `{"article_count": N}`. On error, emits
+    `event: error` with `{"detail": "..."}` and stops.
+    """
+    if not state.articles:
+        raise HTTPException(
+            status_code=400,
+            detail="No articles loaded. Please fetch articles first.",
+        )
+
+    qa_chain = state.qa_chain
+    question = body.question
+    article_count = len(state.articles)
+
+    async def event_source():
+        try:
+            async for chunk in qa_chain.astream(question):
+                if chunk:
+                    yield _sse_event("chunk", {"text": chunk})
+            yield _sse_event("done", {"article_count": article_count})
+        except Exception:
+            request_id = uuid.uuid4()
+            logger.exception(
+                "Unhandled error in ask_question_stream [request_id=%s]", request_id
+            )
+            yield _sse_event(
+                "error",
+                {"detail": f"Internal error answering question (id={request_id})"},
+            )
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/qa/history")

@@ -104,6 +104,31 @@ Summary: {article.summary or article.description or 'No summary available'}
 
         return response
 
+    async def astream(self, question: str):
+        """Async-stream the answer chunk by chunk; commits to chat_history once complete.
+
+        Yields string chunks as they arrive from Claude. The full answer is appended to
+        chat_history only after streaming finishes successfully, so a cancelled stream
+        doesn't leave a partial AI message in the history.
+        """
+        if not self.articles:
+            yield "No articles loaded. Please load articles first."
+            return
+
+        collected: list[str] = []
+        async for chunk in self.chain.astream({
+            "articles_context": self._articles_context,
+            "chat_history": self.chat_history,
+            "question": question,
+        }):
+            if chunk:
+                collected.append(chunk)
+                yield chunk
+
+        full_answer = "".join(collected)
+        self.chat_history.append(HumanMessage(content=question))
+        self.chat_history.append(AIMessage(content=full_answer))
+
     def clear_history(self) -> None:
         """Clear conversation history but keep articles."""
         self.chat_history = []

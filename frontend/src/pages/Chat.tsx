@@ -44,6 +44,33 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const appendToLastAssistant = (chunk: string) => {
+    setMessages(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      if (last.role !== 'assistant') return prev;
+      const updated = [...prev];
+      updated[updated.length - 1] = { role: 'assistant', content: last.content + chunk };
+      return updated;
+    });
+  };
+
+  const replaceLastAssistant = (content: string) => {
+    setMessages(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      if (last.role !== 'assistant') return prev;
+      const updated = [...prev];
+      updated[updated.length - 1] = { role: 'assistant', content };
+      return updated;
+    });
+  };
+
+  const askNonStreaming = async (question: string): Promise<string> => {
+    const response = await qaApi.ask(question);
+    return response.data.answer;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -51,19 +78,46 @@ function Chat() {
     const question = input.trim();
     setInput('');
 
-    setMessages(prev => [...prev, { role: 'user', content: question }]);
+    setMessages(prev => [
+      ...prev,
+      { role: 'user', content: question },
+      { role: 'assistant', content: '' },
+    ]);
     setLoading(true);
 
+    let receivedAnyChunk = false;
+    let streamErrorDetail: string | null = null;
+
     try {
-      const response = await qaApi.ask(question);
-      setMessages(prev => [...prev, { role: 'assistant', content: response.data.answer }]);
+      await qaApi.askStream(question, {
+        onChunk: (text) => {
+          receivedAnyChunk = true;
+          appendToLastAssistant(text);
+        },
+        onError: (detail) => {
+          streamErrorDetail = detail;
+        },
+      });
     } catch (err) {
-      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
-      const errorMessage = detail || 'Sorry, something went wrong.';
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${errorMessage}` }]);
-    } finally {
-      setLoading(false);
+      streamErrorDetail = err instanceof Error ? err.message : 'Streaming failed.';
     }
+
+    if (streamErrorDetail && !receivedAnyChunk) {
+      try {
+        const answer = await askNonStreaming(question);
+        replaceLastAssistant(answer);
+      } catch (fallbackErr) {
+        const detail = axios.isAxiosError(fallbackErr)
+          ? fallbackErr.response?.data?.detail
+          : null;
+        const errorMessage = detail || streamErrorDetail || 'Sorry, something went wrong.';
+        replaceLastAssistant(`Error: ${errorMessage}`);
+      }
+    } else if (streamErrorDetail) {
+      appendToLastAssistant(`\n\n[Error mid-stream: ${streamErrorDetail}]`);
+    }
+
+    setLoading(false);
   };
 
   const handleClearHistory = async () => {
@@ -83,7 +137,7 @@ function Chat() {
     "Compare different news sources"
   ];
 
-  const handleSuggestion = (question) => {
+  const handleSuggestion = (question: string) => {
     setInput(question);
   };
 
@@ -139,27 +193,27 @@ function Chat() {
                 </div>
               )}
 
-              {messages.map((msg, i) => (
-                <div key={i} className={`message ${msg.role}`}>
-                  <div className="message-avatar">
-                    {msg.role === 'user' ? '👤' : '🤖'}
+              {messages.map((msg, i) => {
+                const isLast = i === messages.length - 1;
+                const isStreamingPlaceholder =
+                  loading && isLast && msg.role === 'assistant' && msg.content === '';
+                return (
+                  <div key={i} className={`message ${msg.role}`}>
+                    <div className="message-avatar">
+                      {msg.role === 'user' ? '👤' : '🤖'}
+                    </div>
+                    {isStreamingPlaceholder ? (
+                      <div className="message-content typing">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    ) : (
+                      <div className="message-content">{msg.content}</div>
+                    )}
                   </div>
-                  <div className="message-content">
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-
-              {loading && (
-                <div className="message assistant">
-                  <div className="message-avatar">🤖</div>
-                  <div className="message-content typing">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-              )}
+                );
+              })}
 
               <div ref={messagesEndRef} />
             </div>
