@@ -31,8 +31,10 @@ if PROJECT_ROOT not in sys.path:
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-# Load .env from project root before any module that reads env vars
-load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+# Load .env from project root before any module that reads env vars.
+# override=True so a .env value wins over a pre-existing empty env var
+# (some shells inject ANTHROPIC_API_KEY="" which would otherwise block the real key).
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=True)
 
 _handler = logging.StreamHandler()
 _handler.setFormatter(jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
