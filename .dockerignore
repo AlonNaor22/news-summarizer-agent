@@ -1,0 +1,39 @@
+# Python
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.benchmarks/
+*.egg-info/
+
+# Node / frontend build artefacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Secrets — provided via env_file at runtime, never baked into the image
+.env
+
+# Local data
+*.db
+output/
+cache/
+
+# Git / IDE / OS / Claude metadata
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+.DS_Store
+.claude/
+
+# Logs
+*.log
+
+# Docs/notes that don't belong in the image
+TODO.md
+Task 2 News Summarizer Agent.md

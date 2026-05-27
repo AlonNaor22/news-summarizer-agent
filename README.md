@@ -167,6 +167,32 @@ flowchart LR
    - Frontend: http://localhost:5173
    - API Docs: http://localhost:8000/docs
 
+### Run with Docker
+
+If you'd rather not install Python and Node.js locally, the whole stack runs in containers. You still need an Anthropic API key.
+
+1. **Create your `.env` file** at the repo root (same one the local install uses):
+   ```bash
+   cp .env.example .env
+   # then edit .env to add ANTHROPIC_API_KEY (and optionally NEWS_API_KEY)
+   ```
+
+2. **Build and start both services**
+   ```bash
+   docker compose up --build
+   ```
+
+3. **Open the app** — same URLs as the local install:
+   - Frontend: http://localhost:5173
+   - API docs: http://localhost:8000/docs
+
+4. **Stop everything**
+   ```bash
+   docker compose down
+   ```
+
+The compose file builds two images: a `python:3.11-slim` backend running `uvicorn`, and a multi-stage frontend that builds the Vite bundle with `node:20-alpine` and serves it via `nginx:alpine`. The browser talks to the backend directly on port 8000 (CORS-allowed), so no reverse proxy is needed.
+
 ## Web Interface Screenshots
 
 ### Dashboard

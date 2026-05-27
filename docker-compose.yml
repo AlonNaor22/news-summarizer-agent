@@ -1,0 +1,31 @@
+# Whole-stack runner for News Summarizer Agent.
+#   docker compose up --build
+# Browser hits http://localhost:5173, which serves the SPA; the SPA's axios
+# client calls http://localhost:8000/api directly (CORS-allowed in config.py).
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: news-summarizer-backend
+    container_name: news-summarizer-backend
+    env_file:
+      - ./.env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: news-summarizer-frontend
+    container_name: news-summarizer-frontend
+    ports:
+      # Frontend stays on 5173 so the existing CORS_ORIGINS in config.py
+      # (which already lists http://localhost:5173) works without changes.
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
