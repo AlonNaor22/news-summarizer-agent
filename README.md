@@ -13,7 +13,7 @@ Pull articles from RSS feeds (BBC, NPR, Reuters) or NewsAPI, run them through a 
 - **News Fetching**: Fetch articles from RSS feeds (BBC, NPR, Reuters) or NewsAPI
 - **AI Summarization**: Uses Claude AI to generate concise summaries of each article
 - **Topic Categorization**: Classifies articles into categories (Politics, Technology, Business, etc.)
-- **Interactive Q&A**: Ask questions about the news with conversation memory for follow-ups
+- **Interactive Q&A**: Ask questions about the news with conversation memory for follow-ups — answers stream token-by-token via Server-Sent Events
 
 ### Enhanced Features
 - **Multiple News Sources**: Support for both RSS feeds and NewsAPI
@@ -322,7 +322,8 @@ The FastAPI backend provides these endpoints:
 | `/api/trending` | GET | Trending topics |
 | `/api/articles/{id}/similar` | GET | Similar articles |
 | `/api/comparison` | GET | Source comparisons |
-| `/api/qa/ask` | POST | Ask a question |
+| `/api/qa/ask` | POST | Ask a question (returns full answer) |
+| `/api/qa/ask/stream` | POST | Ask a question, stream the answer as SSE chunks |
 
 Full API documentation available at http://localhost:8000/docs
 
