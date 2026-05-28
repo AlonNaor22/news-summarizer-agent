@@ -21,6 +21,7 @@ frontend/dist/
 *.db
 output/
 cache/
+chroma_db/
 
 # Git / IDE / OS / Claude metadata
 .git/

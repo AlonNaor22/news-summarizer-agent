@@ -27,18 +27,31 @@ _UUID_RE = re.compile(
 
 
 class AppState:
-    """Per-session in-memory state — articles, Q&A chain, derived caches."""
+    """Per-session in-memory state — articles, Q&A chain, derived caches.
+
+    ``collection_name`` is the Chroma collection this session writes its
+    embeddings to (see ``src/rag.py``). Each session gets its own collection
+    so semantic search and RAG-backed Q&A stay isolated between users.
+    """
 
     def __init__(self):
+        self.collection_name: str = f"session-{uuid.uuid4().hex[:16]}"
         self.articles: list[Article] = []
-        self.qa_chain: NewsQAChain = NewsQAChain()
+        self.qa_chain: NewsQAChain = NewsQAChain(collection_name=self.collection_name)
         self.trends: dict = {}
         self.relationships: dict = {}
 
     def clear(self):
         """Reset every field — articles, Q&A history, trend/relationship caches."""
+        from src.rag import clear_index
+
+        try:
+            clear_index(collection_name=self.collection_name)
+        except Exception:
+            logger.warning("Failed to clear RAG index for session", exc_info=True)
+
         self.articles = []
-        self.qa_chain = NewsQAChain()
+        self.qa_chain = NewsQAChain(collection_name=self.collection_name)
         self.trends = {}
         self.relationships = {}
 

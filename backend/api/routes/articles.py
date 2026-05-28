@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 from src.models import Article
 from src.news_fetcher import fetch_news
 from src.pipeline import process_articles
+from src.rag import embed_articles, semantic_search
 
 from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
@@ -52,6 +53,14 @@ def fetch_articles(
         state.articles = articles
 
         state.qa_chain.load_articles(articles)
+
+        try:
+            embed_articles(articles, collection_name=state.collection_name)
+        except Exception:
+            logger.warning(
+                "RAG embedding failed for session; semantic features will fall back",
+                exc_info=True,
+            )
 
         return {
             "articles": articles,
@@ -107,25 +116,42 @@ async def get_articles(
     }
 
 
-@router.get("/articles/{article_id}")
-async def get_article(
-    article_id: int,
-    state: AppState = Depends(get_session_state),
-):
-    """Get a single article by ID."""
-    if article_id < 0 or article_id >= len(state.articles):
-        raise HTTPException(status_code=404, detail="Article not found")
-
-    return state.articles[article_id]
-
-
 @router.get("/articles/search")
 async def search_articles(
     q: str = Query(..., description="Search query"),
     limit: int = Query(20, description="Maximum results"),
+    semantic: bool = Query(
+        False,
+        description="If true, use vector similarity (RAG) instead of keyword scoring",
+    ),
     state: AppState = Depends(get_session_state),
 ):
-    """Search articles by title, summary, or keywords."""
+    """Search articles by title, summary, or keywords.
+
+    With ``semantic=true``, runs a vector-similarity search against the
+    session's Chroma collection (populated at fetch time) and returns the
+    closest matches by meaning rather than exact substring match.
+
+    Declared before ``/articles/{article_id}`` so FastAPI matches the literal
+    ``search`` path first instead of trying to coerce it to an int.
+    """
+    if semantic:
+        try:
+            hits = semantic_search(
+                q,
+                state.articles,
+                k=limit,
+                collection_name=state.collection_name,
+            )
+            return {
+                "results": hits,
+                "total": len(hits),
+                "query": q,
+                "mode": "semantic",
+            }
+        except Exception:
+            logger.exception("Semantic search failed; falling back to keyword search")
+
     query_lower = q.lower()
 
     results = []
@@ -152,7 +178,20 @@ async def search_articles(
         "results": [r["article"] for r in results[:limit]],
         "total": len(results),
         "query": q,
+        "mode": "keyword",
     }
+
+
+@router.get("/articles/{article_id}")
+async def get_article(
+    article_id: int,
+    state: AppState = Depends(get_session_state),
+):
+    """Get a single article by ID."""
+    if article_id < 0 or article_id >= len(state.articles):
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    return state.articles[article_id]
 
 
 @router.get("/stats")
