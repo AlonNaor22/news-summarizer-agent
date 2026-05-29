@@ -1,6 +1,6 @@
 """Tests for src/sentiment.py — mocks the LLM chain singleton."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -83,8 +83,9 @@ def test_analyze_sentiment_skips_short_content():
 
 
 def test_analyze_sentiments_handles_llm_error():
+    # Batch runs through the async path → mock ainvoke.
     mock_chain = MagicMock()
-    mock_chain.invoke.side_effect = RuntimeError("LLM unavailable")
+    mock_chain.ainvoke = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
     sentiment._chain = mock_chain
 
     article = _make_article()

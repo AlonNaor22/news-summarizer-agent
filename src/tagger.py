@@ -1,12 +1,13 @@
+import asyncio
 import logging
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, field_validator
 
-from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, LLM_CONCURRENCY
 from src.models import Article
-from src.retry_utils import retried_invoke
+from src.retry_utils import retried_invoke, retried_ainvoke
 from src.timing import timeit
 
 logger = logging.getLogger(__name__)
@@ -92,29 +93,19 @@ def create_tagging_chain():
     return _chain
 
 
-@timeit
-def tag_article(article: Article) -> Article:
-    """Populate ``article.keywords``/``.people``/``.organizations``/``.locations``."""
-
-    chain = create_tagging_chain()
-
-    title = article.title or "Untitled"
+def _short_content_fallback(article: Article) -> Article | None:
+    """If the article's content is too short to tag, clear tags and return it."""
     content = article.summary or article.description or ""
-
     if not content or len(content.strip()) < 30:
         article.keywords = []
         article.people = []
         article.organizations = []
         article.locations = []
         return article
+    return None
 
-    logger.info("Tagging: %s...", title[:40])
 
-    tags: ArticleTags = retried_invoke(chain, {
-        "title": title,
-        "content": content,
-    })
-
+def _apply_tags(article: Article, tags: ArticleTags) -> None:
     article.keywords = tags.keywords
     article.people = tags.people
     article.organizations = tags.organizations
@@ -125,38 +116,97 @@ def tag_article(article: Article) -> Article:
     if tags.people:
         logger.info("  People: %s", ", ".join(tags.people))
 
+
+@timeit
+def tag_article(article: Article) -> Article:
+    """Populate ``article.keywords``/``.people``/``.organizations``/``.locations``."""
+
+    chain = create_tagging_chain()
+
+    fallback = _short_content_fallback(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    content = article.summary or article.description or ""
+
+    logger.info("Tagging: %s...", title[:40])
+
+    tags: ArticleTags = retried_invoke(chain, {
+        "title": title,
+        "content": content,
+    })
+
+    _apply_tags(article, tags)
+
     return article
 
 
-def tag_articles(articles: list[Article]) -> list[Article]:
-    """Apply tagging to every article, falling back to empty lists on errors."""
+@timeit
+async def tag_article_async(article: Article) -> Article:
+    """Async sibling of :func:`tag_article`."""
+
+    chain = create_tagging_chain()
+
+    fallback = _short_content_fallback(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    content = article.summary or article.description or ""
+
+    logger.info("Tagging: %s...", title[:40])
+
+    tags: ArticleTags = await retried_ainvoke(chain, {
+        "title": title,
+        "content": content,
+    })
+
+    _apply_tags(article, tags)
+
+    return article
+
+
+async def tag_articles_async(articles: list[Article]) -> list[Article]:
+    """Tag every article concurrently, throttled by a semaphore."""
 
     logger.info("=" * 50)
-    logger.info("EXTRACTING KEYWORDS & ENTITIES")
+    logger.info(
+        "EXTRACTING KEYWORDS & ENTITIES (async, concurrency=%d)",
+        LLM_CONCURRENCY,
+    )
     logger.info("=" * 50)
 
-    tagged: list[Article] = []
+    sem = asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
-    for i, article in enumerate(articles, 1):
-        logger.info("[%d/%d]", i, total)
+    async def _one(idx: int, article: Article) -> Article:
+        async with sem:
+            logger.info("[%d/%d]", idx, total)
+            try:
+                return await tag_article_async(article)
+            except Exception as e:
+                logger.error("Error tagging: %s", e)
+                article.keywords = []
+                article.people = []
+                article.organizations = []
+                article.locations = []
+                return article
 
-        try:
-            tagged_article = tag_article(article)
-            tagged.append(tagged_article)
-        except Exception as e:
-            logger.error("Error tagging: %s", e)
-            article.keywords = []
-            article.people = []
-            article.organizations = []
-            article.locations = []
-            tagged.append(article)
+    results = await asyncio.gather(
+        *[_one(i, a) for i, a in enumerate(articles, 1)]
+    )
 
     logger.info("=" * 50)
     logger.info("TAGGING COMPLETE")
     logger.info("=" * 50)
 
-    return tagged
+    return list(results)
+
+
+def tag_articles(articles: list[Article]) -> list[Article]:
+    """Sync wrapper around :func:`tag_articles_async` for non-async callers."""
+    return asyncio.run(tag_articles_async(articles))
 
 
 def display_tags(article: Article) -> None:
@@ -230,4 +280,3 @@ def get_all_entities(articles: list[Article]) -> dict:
         )
 
     return entities
-

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Literal
 
@@ -5,9 +6,9 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, LLM_CONCURRENCY
 from src.models import Article
-from src.retry_utils import retried_invoke
+from src.retry_utils import retried_invoke, retried_ainvoke
 from src.timing import timeit
 
 logger = logging.getLogger(__name__)
@@ -95,29 +96,18 @@ def create_sentiment_chain():
     return _chain
 
 
-
-@timeit
-def analyze_sentiment(article: Article) -> Article:
-    """Populate ``article.sentiment``, ``.sentiment_confidence``, ``.sentiment_reason``."""
-
-    chain = create_sentiment_chain()
-
-    title = article.title or "Untitled"
+def _short_content_fallback(article: Article) -> Article | None:
+    """If the article's content is too short, set neutral defaults and return it."""
     content = article.summary or article.description or ""
-
     if not content or len(content.strip()) < 30:
         article.sentiment = "neutral"
         article.sentiment_confidence = "low"
         article.sentiment_reason = "Insufficient content for analysis"
         return article
+    return None
 
-    logger.info("Analyzing sentiment: %s...", title[:40])
 
-    result: SentimentResult = retried_invoke(chain, {
-        "title": title,
-        "content": content,
-    })
-
+def _apply_sentiment(article: Article, result: SentimentResult) -> None:
     article.sentiment = result.sentiment
     article.sentiment_confidence = result.confidence
     article.sentiment_reason = result.reason
@@ -130,38 +120,96 @@ def analyze_sentiment(article: Article) -> Article:
 
     logger.info("  -> %s %s (%s confidence)", indicator, result.sentiment, result.confidence)
 
+
+@timeit
+def analyze_sentiment(article: Article) -> Article:
+    """Populate ``article.sentiment``, ``.sentiment_confidence``, ``.sentiment_reason``."""
+
+    chain = create_sentiment_chain()
+
+    fallback = _short_content_fallback(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    content = article.summary or article.description or ""
+
+    logger.info("Analyzing sentiment: %s...", title[:40])
+
+    result: SentimentResult = retried_invoke(chain, {
+        "title": title,
+        "content": content,
+    })
+
+    _apply_sentiment(article, result)
+
     return article
 
 
+@timeit
+async def analyze_sentiment_async(article: Article) -> Article:
+    """Async sibling of :func:`analyze_sentiment`."""
 
-def analyze_sentiments(articles: list[Article]) -> list[Article]:
-    """Run sentiment analysis on every article, defaulting to neutral on error."""
+    chain = create_sentiment_chain()
+
+    fallback = _short_content_fallback(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    content = article.summary or article.description or ""
+
+    logger.info("Analyzing sentiment: %s...", title[:40])
+
+    result: SentimentResult = await retried_ainvoke(chain, {
+        "title": title,
+        "content": content,
+    })
+
+    _apply_sentiment(article, result)
+
+    return article
+
+
+async def analyze_sentiments_async(articles: list[Article]) -> list[Article]:
+    """Run sentiment analysis on every article concurrently."""
 
     logger.info("=" * 50)
-    logger.info("ANALYZING ARTICLE SENTIMENTS")
+    logger.info(
+        "ANALYZING ARTICLE SENTIMENTS (async, concurrency=%d)",
+        LLM_CONCURRENCY,
+    )
     logger.info("=" * 50)
 
-    analyzed: list[Article] = []
+    sem = asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
-    for i, article in enumerate(articles, 1):
-        logger.info("[%d/%d]", i, total)
+    async def _one(idx: int, article: Article) -> Article:
+        async with sem:
+            logger.info("[%d/%d]", idx, total)
+            try:
+                return await analyze_sentiment_async(article)
+            except Exception as e:
+                logger.error("Error analyzing sentiment: %s", e)
+                article.sentiment = "neutral"
+                article.sentiment_confidence = "low"
+                article.sentiment_reason = f"Error during analysis: {e}"
+                return article
 
-        try:
-            analyzed_article = analyze_sentiment(article)
-            analyzed.append(analyzed_article)
-        except Exception as e:
-            logger.error("Error analyzing sentiment: %s", e)
-            article.sentiment = "neutral"
-            article.sentiment_confidence = "low"
-            article.sentiment_reason = f"Error during analysis: {str(e)}"
-            analyzed.append(article)
+    results = await asyncio.gather(
+        *[_one(i, a) for i, a in enumerate(articles, 1)]
+    )
 
     logger.info("=" * 50)
     logger.info("SENTIMENT ANALYSIS COMPLETE")
     logger.info("=" * 50)
 
-    return analyzed
+    return list(results)
+
+
+def analyze_sentiments(articles: list[Article]) -> list[Article]:
+    """Sync wrapper around :func:`analyze_sentiments_async` for non-async callers."""
+    return asyncio.run(analyze_sentiments_async(articles))
 
 
 

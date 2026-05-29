@@ -1,12 +1,13 @@
+import asyncio
 import logging
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS
+from config import ANTHROPIC_API_KEY, MODEL_NAME, LLM_SETTINGS, LLM_CONCURRENCY
 from src.models import Article
-from src.retry_utils import retried_invoke
+from src.retry_utils import retried_invoke, retried_ainvoke
 from src.timing import timeit
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,14 @@ def create_summary_chain():
     return _chain
 
 
+def _short_content_fallback(article: Article) -> Article | None:
+    """If the article's body is too short to summarize, set a fallback and return it."""
+    content = article.description
+    if not content or len(content.strip()) < 50:
+        article.summary = "Summary unavailable - article content too short."
+        return article
+    return None
+
 
 @timeit
 def summarize_article(article: Article) -> Article:
@@ -75,18 +84,16 @@ def summarize_article(article: Article) -> Article:
 
     chain = create_summary_chain()
 
-    content = article.description
+    fallback = _short_content_fallback(article)
+    if fallback is not None:
+        return fallback
+
     title = article.title or "Untitled"
-
-    if not content or len(content.strip()) < 50:
-        article.summary = "Summary unavailable - article content too short."
-        return article
-
     logger.info("Summarizing: %s...", title[:50])
 
     summary = retried_invoke(chain, {
         "title": title,
-        "content": content,
+        "content": article.description,
     })
 
     article.summary = summary
@@ -94,32 +101,66 @@ def summarize_article(article: Article) -> Article:
     return article
 
 
-def summarize_articles(articles: list[Article]) -> list[Article]:
-    """Summarize every article in ``articles``, returning the same list."""
+@timeit
+async def summarize_article_async(article: Article) -> Article:
+    """Async sibling of :func:`summarize_article` — awaits Claude's async API."""
+
+    chain = create_summary_chain()
+
+    fallback = _short_content_fallback(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    logger.info("Summarizing: %s...", title[:50])
+
+    summary = await retried_ainvoke(chain, {
+        "title": title,
+        "content": article.description,
+    })
+
+    article.summary = summary
+
+    return article
+
+
+async def summarize_articles_async(articles: list[Article]) -> list[Article]:
+    """Summarize every article concurrently, throttled by a semaphore."""
 
     logger.info("=" * 50)
-    logger.info("SUMMARIZING ARTICLES WITH CLAUDE")
+    logger.info(
+        "SUMMARIZING ARTICLES WITH CLAUDE (async, concurrency=%d)",
+        LLM_CONCURRENCY,
+    )
     logger.info("=" * 50)
 
-    summarized: list[Article] = []
+    sem = asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
-    for i, article in enumerate(articles, 1):
-        logger.info("[%d/%d]", i, total)
+    async def _one(idx: int, article: Article) -> Article:
+        async with sem:
+            logger.info("[%d/%d]", idx, total)
+            try:
+                return await summarize_article_async(article)
+            except Exception as e:
+                logger.error("Error summarizing: %s", e)
+                article.summary = f"Error: Could not summarize - {e}"
+                return article
 
-        try:
-            summarized_article = summarize_article(article)
-            summarized.append(summarized_article)
-        except Exception as e:
-            logger.error("Error summarizing: %s", e)
-            article.summary = f"Error: Could not summarize - {str(e)}"
-            summarized.append(article)
+    results = await asyncio.gather(
+        *[_one(i, a) for i, a in enumerate(articles, 1)]
+    )
 
     logger.info("=" * 50)
-    logger.info("COMPLETED: %d articles summarized", len(summarized))
+    logger.info("COMPLETED: %d articles summarized", len(results))
     logger.info("=" * 50)
 
-    return summarized
+    return list(results)
+
+
+def summarize_articles(articles: list[Article]) -> list[Article]:
+    """Sync wrapper around :func:`summarize_articles_async` for non-async callers."""
+    return asyncio.run(summarize_articles_async(articles))
 
 
 def display_summary(article: Article) -> None:
@@ -132,4 +173,3 @@ def display_summary(article: Article) -> None:
     logger.info("📝 SUMMARY:")
     logger.info("   %s", article.summary or "No summary available")
     logger.info("🔗 %s", article.url)
-

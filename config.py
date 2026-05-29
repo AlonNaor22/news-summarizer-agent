@@ -11,8 +11,10 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-# This reads your .env file and makes variables available via os.getenv()
-load_dotenv()
+# This reads your .env file and makes variables available via os.getenv().
+# override=True so .env wins over empty env vars some shells inject
+# (matches the fix in backend/main.py from 52e771f).
+load_dotenv(override=True)
 
 # =====================================================
 # API KEYS
@@ -56,6 +58,11 @@ LLM_SETTINGS = {
 
 # Kept for backwards compatibility with anything still importing MAX_TOKENS
 MAX_TOKENS = LLM_SETTINGS["summarize"]["max_tokens"]
+
+# Max simultaneous Claude requests when batching articles via asyncio.gather.
+# Keeps us under Anthropic's rate limits while still giving a 5–10× speedup
+# over the old sequential loop.
+LLM_CONCURRENCY = 5
 
 # =====================================================
 # RSS FEED SOURCES (Free - No API Key Needed!)

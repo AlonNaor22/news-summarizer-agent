@@ -415,7 +415,7 @@ Honest trade-offs in the current implementation — the kind of things you'd add
 - **Single-process only**: the session dict isn't shared across workers, so `uvicorn --workers N > 1` would route the same session ID to different states depending on which worker handles the request. Stick to a single worker, or move sessions to Redis.
 - **No authentication**: session IDs are bearer-token-equivalent. Anyone with a session ID has full access to that session's data; share a screen-recording with the header visible and you've shared the session.
 - **No per-session rate limiting**: rate limits are by client IP (`slowapi`). Two browsers behind the same NAT share the budget.
-- **Sequential LLM calls**: `summarize_articles`, `categorize_articles`, `tag_articles`, and `analyze_sentiments` loop articles one at a time; `asyncio.gather` + `.ainvoke` could reduce wall-clock time 5–10×.
+- **Single-node concurrency**: per-article Claude calls run concurrently within each pipeline stage via `asyncio.gather` (throttled by `LLM_CONCURRENCY=5` in [config.py](config.py)), but the four stages still run serially. Going stage-parallel would require dependency tracking (tag and sentiment both consume the summary) — left as future work.
 
 ## Contributing
 

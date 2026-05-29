@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 from src.models import Article
 from src.news_fetcher import fetch_news
-from src.pipeline import process_articles
+from src.pipeline import process_articles_async
 from src.rag import embed_articles, semantic_search
 
 from api.dependencies import AppState, get_session_state
@@ -29,12 +29,17 @@ class FetchRequest(BaseModel):
 
 @router.post("/fetch")
 @limiter.limit("3/minute")
-def fetch_articles(
+async def fetch_articles(
     request: Request,
     body: FetchRequest,
     state: AppState = Depends(get_session_state),
 ):
-    """Fetch raw articles and (optionally) run the full processing pipeline."""
+    """Fetch raw articles and (optionally) run the full processing pipeline.
+
+    Async so the per-article Claude calls in ``process_articles_async`` can
+    run concurrently on the existing event loop, rather than spinning up a
+    fresh one inside FastAPI's threadpool worker.
+    """
     try:
         articles = fetch_news(
             source=body.source,
@@ -45,7 +50,7 @@ def fetch_articles(
             return {"articles": [], "total": 0, "message": "No articles fetched"}
 
         if body.process:
-            articles = process_articles(articles)
+            articles = await process_articles_async(articles)
 
         for i, article in enumerate(articles):
             article.id = i

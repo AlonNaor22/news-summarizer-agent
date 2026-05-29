@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from langchain_anthropic import ChatAnthropic
@@ -5,9 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from pydantic import BaseModel, Field, field_validator
 
-from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS
+from config import ANTHROPIC_API_KEY, MODEL_NAME, CATEGORIES, LLM_SETTINGS, LLM_CONCURRENCY
 from src.models import Article
-from src.retry_utils import retried_invoke
+from src.retry_utils import retried_invoke, retried_ainvoke
 from src.timing import timeit
 
 logger = logging.getLogger(__name__)
@@ -124,24 +125,35 @@ def clean_category(raw_category: str) -> str:
     return "Other"
 
 
+def _categories_str() -> str:
+    return "\n".join(f"- {cat}" for cat in CATEGORIES)
+
+
+def _missing_summary_fallback(article: Article) -> Article | None:
+    """Default ``category`` to ``"Other"`` when there's no summary/description to classify."""
+    summary = article.summary or article.description or ""
+    if not summary:
+        article.category = "Other"
+        return article
+    return None
+
+
 @timeit
 def categorize_article(article: Article) -> Article:
     """Set ``article.category`` via Claude and return the article."""
     chain = create_categorize_chain()
 
+    fallback = _missing_summary_fallback(article)
+    if fallback is not None:
+        return fallback
+
     title = article.title or "Untitled"
     summary = article.summary or article.description or ""
 
-    if not summary:
-        article.category = "Other"
-        return article
-
     logger.info("Categorizing: %s...", title[:40])
 
-    categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
-
     raw_response = retried_invoke(chain, {
-        "categories": categories_str,
+        "categories": _categories_str(),
         "title": title,
         "summary": summary,
     })
@@ -154,31 +166,70 @@ def categorize_article(article: Article) -> Article:
     return article
 
 
-def categorize_articles(articles: list[Article]) -> list[Article]:
-    """Categorize every article, falling back to ``"Other"`` on errors."""
+@timeit
+async def categorize_article_async(article: Article) -> Article:
+    """Async sibling of :func:`categorize_article`."""
+    chain = create_categorize_chain()
+
+    fallback = _missing_summary_fallback(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    summary = article.summary or article.description or ""
+
+    logger.info("Categorizing: %s...", title[:40])
+
+    raw_response = await retried_ainvoke(chain, {
+        "categories": _categories_str(),
+        "title": title,
+        "summary": summary,
+    })
+
+    category = clean_category(raw_response)
+    article.category = category
+
+    logger.info("  -> %s", category)
+
+    return article
+
+
+async def categorize_articles_async(articles: list[Article]) -> list[Article]:
+    """Categorize every article concurrently, throttled by a semaphore."""
     logger.info("=" * 50)
-    logger.info("CATEGORIZING ARTICLES")
+    logger.info(
+        "CATEGORIZING ARTICLES (async, concurrency=%d)",
+        LLM_CONCURRENCY,
+    )
     logger.info("=" * 50)
 
-    categorized: list[Article] = []
+    sem = asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
-    for i, article in enumerate(articles, 1):
-        logger.info("[%d/%d]", i, total)
+    async def _one(idx: int, article: Article) -> Article:
+        async with sem:
+            logger.info("[%d/%d]", idx, total)
+            try:
+                return await categorize_article_async(article)
+            except Exception as e:
+                logger.error("Error categorizing: %s", e)
+                article.category = "Other"
+                return article
 
-        try:
-            categorized_article = categorize_article(article)
-            categorized.append(categorized_article)
-        except Exception as e:
-            logger.error("Error categorizing: %s", e)
-            article.category = "Other"
-            categorized.append(article)
+    results = await asyncio.gather(
+        *[_one(i, a) for i, a in enumerate(articles, 1)]
+    )
 
     logger.info("=" * 50)
     logger.info("CATEGORIZATION COMPLETE")
     logger.info("=" * 50)
 
-    return categorized
+    return list(results)
+
+
+def categorize_articles(articles: list[Article]) -> list[Article]:
+    """Sync wrapper around :func:`categorize_articles_async` for non-async callers."""
+    return asyncio.run(categorize_articles_async(articles))
 
 
 
@@ -201,24 +252,30 @@ def create_multi_categorize_chain():
     return _multi_chain
 
 
-def categorize_article_multi(article: Article) -> Article:
-    """Set ``article.category`` and ``article.secondary_categories`` from Claude."""
-    chain = create_multi_categorize_chain()
-
-    title = article.title or "Untitled"
+def _missing_summary_fallback_multi(article: Article) -> Article | None:
     summary = article.summary or article.description or ""
-
     if not summary:
         article.category = "Other"
         article.secondary_categories = []
         return article
+    return None
+
+
+def categorize_article_multi(article: Article) -> Article:
+    """Set ``article.category`` and ``article.secondary_categories`` from Claude."""
+    chain = create_multi_categorize_chain()
+
+    fallback = _missing_summary_fallback_multi(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    summary = article.summary or article.description or ""
 
     logger.info("Categorizing: %s...", title[:40])
 
-    categories_str = "\n".join(f"- {cat}" for cat in CATEGORIES)
-
     parsed: MultiCategoryResult = retried_invoke(chain, {
-        "categories": categories_str,
+        "categories": _categories_str(),
         "title": title,
         "summary": summary,
     })
@@ -233,32 +290,72 @@ def categorize_article_multi(article: Article) -> Article:
     return article
 
 
-def categorize_articles_multi(articles: list[Article]) -> list[Article]:
-    """Apply multi-category classification to every article."""
+async def categorize_article_multi_async(article: Article) -> Article:
+    """Async sibling of :func:`categorize_article_multi`."""
+    chain = create_multi_categorize_chain()
+
+    fallback = _missing_summary_fallback_multi(article)
+    if fallback is not None:
+        return fallback
+
+    title = article.title or "Untitled"
+    summary = article.summary or article.description or ""
+
+    logger.info("Categorizing: %s...", title[:40])
+
+    parsed: MultiCategoryResult = await retried_ainvoke(chain, {
+        "categories": _categories_str(),
+        "title": title,
+        "summary": summary,
+    })
+
+    article.category = parsed.primary
+    article.secondary_categories = parsed.secondary
+
+    secondary_str = ", ".join(parsed.secondary) if parsed.secondary else "None"
+    logger.info("  -> Primary: %s", parsed.primary)
+    logger.info("  -> Secondary: %s", secondary_str)
+
+    return article
+
+
+async def categorize_articles_multi_async(articles: list[Article]) -> list[Article]:
+    """Apply multi-category classification concurrently."""
     logger.info("=" * 50)
-    logger.info("CATEGORIZING ARTICLES (Multi-Category)")
+    logger.info(
+        "CATEGORIZING ARTICLES (Multi-Category, async, concurrency=%d)",
+        LLM_CONCURRENCY,
+    )
     logger.info("=" * 50)
 
-    categorized: list[Article] = []
+    sem = asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
-    for i, article in enumerate(articles, 1):
-        logger.info("[%d/%d]", i, total)
+    async def _one(idx: int, article: Article) -> Article:
+        async with sem:
+            logger.info("[%d/%d]", idx, total)
+            try:
+                return await categorize_article_multi_async(article)
+            except Exception as e:
+                logger.error("Error categorizing: %s", e)
+                article.category = "Other"
+                article.secondary_categories = []
+                return article
 
-        try:
-            categorized_article = categorize_article_multi(article)
-            categorized.append(categorized_article)
-        except Exception as e:
-            logger.error("Error categorizing: %s", e)
-            article.category = "Other"
-            article.secondary_categories = []
-            categorized.append(article)
+    results = await asyncio.gather(
+        *[_one(i, a) for i, a in enumerate(articles, 1)]
+    )
 
     logger.info("=" * 50)
     logger.info("CATEGORIZATION COMPLETE")
     logger.info("=" * 50)
 
-    return categorized
+    return list(results)
+
+
+def categorize_articles_multi(articles: list[Article]) -> list[Article]:
+    """Sync wrapper around :func:`categorize_articles_multi_async`."""
+    return asyncio.run(categorize_articles_multi_async(articles))
 
 
 def display_multi_categories(articles: list[Article]) -> None:
@@ -308,4 +405,3 @@ def display_by_category(articles: list[Article]) -> None:
         for article in category_articles:
             logger.info("  • %s...", article.title[:50])
             logger.info("    Source: %s", article.source)
-

@@ -20,13 +20,22 @@ def _is_retryable(exc: BaseException) -> bool:
     return False
 
 
-@retry(
+_retry_policy = retry(
     retry=retry_if_exception(_is_retryable),
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=1, max=60),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True,
 )
+
+
+@_retry_policy
 def retried_invoke(chain, inputs: dict):
     """Call chain.invoke(inputs) with exponential-backoff retry on 429/529 and connection errors."""
     return chain.invoke(inputs)
+
+
+@_retry_policy
+async def retried_ainvoke(chain, inputs: dict):
+    """Async sibling of retried_invoke — awaits chain.ainvoke with the same retry policy."""
+    return await chain.ainvoke(inputs)

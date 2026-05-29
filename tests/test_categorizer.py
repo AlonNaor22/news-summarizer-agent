@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.categorizer import (
     MultiCategoryResult,
@@ -132,13 +132,14 @@ class TestCategorizeArticle:
 
 class TestCategorizeArticles:
     def test_batch_sets_all_categories(self):
+        # Batch runs through the async path → mock ainvoke, not invoke.
         articles = [
             _make_article(title="Tech news", summary="Apple released a new AI chip."),
             _make_article(title="Election results", summary="Congress passed a new bill."),
         ]
 
         mock_chain = MagicMock()
-        mock_chain.invoke.side_effect = ["Technology", "Politics"]
+        mock_chain.ainvoke = AsyncMock(side_effect=["Technology", "Politics"])
 
         with patch("src.categorizer.create_categorize_chain", return_value=mock_chain):
             result = categorize_articles(articles)
@@ -153,7 +154,9 @@ class TestCategorizeArticles:
         ]
 
         mock_chain = MagicMock()
-        mock_chain.invoke.side_effect = [RuntimeError("LLM unavailable"), "Business"]
+        mock_chain.ainvoke = AsyncMock(
+            side_effect=[RuntimeError("LLM unavailable"), "Business"],
+        )
 
         with patch("src.categorizer.create_categorize_chain", return_value=mock_chain):
             result = categorize_articles(articles)

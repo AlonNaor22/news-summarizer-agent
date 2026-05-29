@@ -1,6 +1,6 @@
 """Tests for src/summarizer.py — mocks the LLM chain singleton."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -45,8 +45,10 @@ def test_summarize_article_uses_chain_result():
 
 
 def test_summarize_articles_batch():
+    # Batch uses the async path under the hood, so mock ainvoke (AsyncMock returns
+    # an awaitable; plain MagicMock.ainvoke() returns a MagicMock and `await` blows up).
     mock_chain = MagicMock()
-    mock_chain.invoke.return_value = "Summary."
+    mock_chain.ainvoke = AsyncMock(return_value="Summary.")
     summarizer._chain = mock_chain
 
     articles = [_make_article(description="D" * 100) for _ in range(3)]
@@ -54,7 +56,7 @@ def test_summarize_articles_batch():
 
     assert len(results) == 3
     assert all(a.summary == "Summary." for a in results)
-    assert mock_chain.invoke.call_count == 3
+    assert mock_chain.ainvoke.call_count == 3
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ def test_summarize_article_skips_short_content():
 
 def test_summarize_article_handles_llm_error():
     mock_chain = MagicMock()
-    mock_chain.invoke.side_effect = RuntimeError("LLM unavailable")
+    mock_chain.ainvoke = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
     summarizer._chain = mock_chain
 
     article = _make_article(description="D" * 100)
