@@ -156,6 +156,12 @@ CORS_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
+# When deployed, set FRONTEND_URL to the production frontend URL so CORS allows it.
+# Example: https://news-summarizer-frontend.onrender.com
+_frontend_url = os.getenv("FRONTEND_URL")
+if _frontend_url:
+    CORS_ORIGINS = CORS_ORIGINS + [_frontend_url]
+
 # Backend server settings
 BACKEND_HOST = "0.0.0.0"
 BACKEND_PORT = 8000

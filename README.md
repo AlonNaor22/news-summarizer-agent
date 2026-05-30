@@ -1,5 +1,6 @@
 [![CI](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/AlonNaor22/news-summarizer-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/AlonNaor22/news-summarizer-agent)
 
 # News Summarizer Agent
 
@@ -192,6 +193,28 @@ If you'd rather not install Python and Node.js locally, the whole stack runs in 
    ```
 
 The compose file builds two images: a `python:3.11-slim` backend running `uvicorn`, and a multi-stage frontend that builds the Vite bundle with `node:20-alpine` and serves it via `nginx:alpine`. The browser talks to the backend directly on port 8000 (CORS-allowed), so no reverse proxy is needed.
+
+### Deploy to Render + Vercel (free tier)
+
+The repo ships a [`render.yaml`](render.yaml) Blueprint and a [`frontend/vercel.json`](frontend/vercel.json) so the whole stack can be live in under 10 minutes.
+
+**Backend → Render**
+
+1. Click the **Deploy to Render** button at the top of this README (or go to [render.com/deploy](https://render.com/deploy?repo=https://github.com/AlonNaor22/news-summarizer-agent)).
+2. Render reads `render.yaml` and creates two services. In the **Environment** tab for `news-summarizer-backend`, set:
+   - `ANTHROPIC_API_KEY` — your Anthropic key
+   - `NEWS_API_KEY` — your NewsAPI key (optional)
+   - `FRONTEND_URL` — your Vercel frontend URL (fill in after step below)
+3. Deploy. The `/api/health` endpoint turns green when the backend is up.
+
+**Frontend → Vercel**
+
+1. Import the repo at [vercel.com/new](https://vercel.com/new).
+2. Set **Root Directory** to `frontend`.
+3. Add environment variable `VITE_API_URL` = `https://<your-backend>.onrender.com/api`.
+4. Deploy. Copy the Vercel URL back into Render's `FRONTEND_URL` and redeploy the backend.
+
+> **Note:** Render's free tier spins down after 15 minutes of inactivity — the first request after a cold start takes ~30 s while the container wakes up. This is normal for portfolio demos on the free plan.
 
 ## Web Interface Screenshots
 
