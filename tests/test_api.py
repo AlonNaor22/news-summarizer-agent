@@ -30,12 +30,24 @@ deps = _sys.modules.get("api.dependencies") or _sys.modules["backend.api.depende
 TEST_SESSION_ID = "00000000-0000-4000-8000-000000000000"
 
 
+def _truncate_db_tables():
+    """Wipe persisted articles + Q&A history so each test starts clean."""
+    from backend.db import ArticleORM, ConversationMessageORM, SessionLocal
+
+    with SessionLocal() as session:
+        session.query(ArticleORM).delete()
+        session.query(ConversationMessageORM).delete()
+        session.commit()
+
+
 @pytest.fixture(autouse=True)
 def reset_session_store():
-    """Drop every session before and after each test."""
+    """Drop every in-memory session and persisted row before and after each test."""
     deps.session_store.clear_all()
+    _truncate_db_tables()
     yield
     deps.session_store.clear_all()
+    _truncate_db_tables()
 
 
 @pytest.fixture
@@ -247,3 +259,69 @@ def test_sentiment_returns_counts(seeded_state):
     assert resp.status_code == 200
     data = resp.json()
     assert "sentiment_counts" in data or "counts" in data or isinstance(data, dict)
+
+
+# ---------------------------------------------------------------------------
+# Persistence — articles + Q&A history survive a simulated backend restart
+# ---------------------------------------------------------------------------
+
+
+def test_articles_survive_restart():
+    """Save articles to DB, drop in-memory sessions, GET should still return them."""
+    from backend.db import save_articles
+
+    persisted = [
+        Article(
+            title="Persistent headline",
+            source="DBPress",
+            url="http://example.com/persist",
+            summary="Survives backend restart.",
+            category="Technology",
+            sentiment="neutral",
+            keywords=["persistence", "sqlite"],
+        ),
+    ]
+    save_articles(TEST_SESSION_ID, persisted)
+
+    # Simulate a backend restart: every cached AppState is dropped, but the DB row remains.
+    deps.session_store.clear_all()
+
+    resp = client.get("/api/articles")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["articles"][0]["title"] == "Persistent headline"
+    assert data["articles"][0]["keywords"] == ["persistence", "sqlite"]
+
+
+def test_qa_history_survives_restart():
+    """Persisted Q&A messages should be reloaded into chat_history after restart."""
+    from backend.db import append_message, save_articles
+
+    save_articles(
+        TEST_SESSION_ID,
+        [Article(title="X", source="S", url="http://example.com/x", summary="x")],
+    )
+    append_message(TEST_SESSION_ID, "user", "What's the headline?")
+    append_message(TEST_SESSION_ID, "assistant", "It's about X.")
+
+    deps.session_store.clear_all()
+
+    resp = client.get("/api/qa/history")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["message_count"] == 2
+    assert data["history"][0] == {"role": "user", "content": "What's the headline?"}
+    assert data["history"][1] == {"role": "assistant", "content": "It's about X."}
+
+
+def test_clear_articles_removes_persisted_rows(seeded_state):
+    """DELETE /api/articles wipes the DB rows, not just the in-memory cache."""
+    from backend.db import load_articles, save_articles
+
+    save_articles(TEST_SESSION_ID, seeded_state.articles)
+    assert len(load_articles(TEST_SESSION_ID)) == 2
+
+    resp = client.delete("/api/articles")
+    assert resp.status_code == 200
+    assert load_articles(TEST_SESSION_ID) == []

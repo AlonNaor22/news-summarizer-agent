@@ -55,9 +55,7 @@ async def fetch_articles(
         for i, article in enumerate(articles):
             article.id = i
 
-        state.articles = articles
-
-        state.qa_chain.load_articles(articles)
+        state.set_articles(articles)
 
         try:
             embed_articles(articles, collection_name=state.collection_name)

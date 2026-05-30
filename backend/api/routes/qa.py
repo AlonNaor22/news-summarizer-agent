@@ -44,6 +44,7 @@ def ask_question(
 
     try:
         answer = state.qa_chain.ask(body.question)
+        state.persist_qa_exchange(body.question, answer)
 
         return {
             "question": body.question,
@@ -87,11 +88,14 @@ async def ask_question_stream(
     article_count = len(state.articles)
 
     async def event_source():
+        collected: list[str] = []
         try:
             async for chunk in qa_chain.astream(question):
                 if chunk:
+                    collected.append(chunk)
                     yield _sse_event("chunk", {"text": chunk})
             yield _sse_event("done", {"article_count": article_count})
+            state.persist_qa_exchange(question, "".join(collected))
         except Exception:
             request_id = uuid.uuid4()
             logger.exception(
@@ -141,7 +145,7 @@ async def clear_conversation_history(state: AppState = Depends(get_session_state
 
     Use this to start a fresh conversation about the same articles.
     """
-    state.qa_chain.clear_history()
+    state.clear_qa_history()
 
     return {"message": "Conversation history cleared"}
 

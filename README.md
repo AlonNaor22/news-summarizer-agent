@@ -411,7 +411,7 @@ Each client gets its own isolated `AppState` (articles + Q&A memory + derived ca
 
 Honest trade-offs in the current implementation — the kind of things you'd address before scaling beyond a personal demo:
 
-- **In-memory state**: sessions live in process RAM and are wiped on backend restart. Swap `SessionStore` for a Redis-backed equivalent if you need persistence.
+- **In-memory session cache**: the `SessionStore` dict is per-process and isn't shared across workers. Articles and Q&A history are persisted to SQLite (see `backend/db.py`, default `./news.db`) and re-hydrated per session on demand, so a single-worker restart preserves user data; the derived caches (trends, relationships) and the Chroma collection are rebuilt on the next fetch.
 - **Single-process only**: the session dict isn't shared across workers, so `uvicorn --workers N > 1` would route the same session ID to different states depending on which worker handles the request. Stick to a single worker, or move sessions to Redis.
 - **No authentication**: session IDs are bearer-token-equivalent. Anyone with a session ID has full access to that session's data; share a screen-recording with the header visible and you've shared the session.
 - **No per-session rate limiting**: rate limits are by client IP (`slowapi`). Two browsers behind the same NAT share the budget.

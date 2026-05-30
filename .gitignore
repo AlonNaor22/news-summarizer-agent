@@ -34,6 +34,10 @@ cache/
 # Chroma vector store (auto-generated, rebuilt on fetch)
 chroma_db/
 
+# SQLite databases (per-session articles + Q&A history)
+*.db
+*.db-journal
+
 # Node.js
 node_modules/
 frontend/node_modules/

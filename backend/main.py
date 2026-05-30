@@ -48,6 +48,7 @@ from slowapi.errors import RateLimitExceeded
 from api.routes import articles, sentiment, trending, similarity, comparison, qa
 from api.limiter import limiter
 from api.dependencies import resolve_session_id, session_store
+from backend.db import init_db
 from config import CORS_ORIGINS
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ async def _session_cleanup_loop():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     task = asyncio.create_task(_session_cleanup_loop())
     try:
         yield
