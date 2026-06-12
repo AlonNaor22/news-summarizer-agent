@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { qaApi } from '../services/api';
 import type { ChatMessage, QaStatus } from '../types';
-import LoadingSpinner from '../components/LoadingSpinner';
 import './Chat.css';
 
 function Chat() {

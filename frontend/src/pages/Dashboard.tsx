@@ -45,7 +45,7 @@ function Dashboard() {
     setError(null);
 
     try {
-      const response = await articlesApi.fetch(fetchSource, maxArticles, true);
+      await articlesApi.fetch(fetchSource, maxArticles, true);
       await loadData();
     } catch (err) {
       const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;

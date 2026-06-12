@@ -11,7 +11,7 @@ export interface Article {
   category?: string;
   secondary_categories?: string[];
   sentiment?: SentimentType;
-  sentiment_confidence?: number;
+  sentiment_confidence?: 'high' | 'medium' | 'low';
   sentiment_reason?: string;
   keywords?: string[];
   people?: string[];
