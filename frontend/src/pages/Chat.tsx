@@ -223,6 +223,7 @@ function Chat() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask a question about the news..."
+                aria-label="Ask a question about the news"
                 disabled={loading}
                 className="chat-input"
               />

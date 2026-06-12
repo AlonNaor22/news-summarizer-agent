@@ -22,6 +22,7 @@ function SearchBar({ onSearch, placeholder = 'Search articles...' }: Props) {
         type="text"
         className="search-input"
         placeholder={placeholder}
+        aria-label={placeholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />

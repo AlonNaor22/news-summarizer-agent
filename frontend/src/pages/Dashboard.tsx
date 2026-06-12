@@ -81,8 +81,9 @@ function Dashboard() {
 
         <div className="fetch-controls">
           <div className="control-group">
-            <label>Source</label>
+            <label htmlFor="fetch-source">Source</label>
             <select
+              id="fetch-source"
               value={fetchSource}
               onChange={(e) => setFetchSource(e.target.value)}
               disabled={fetching}
@@ -94,8 +95,9 @@ function Dashboard() {
           </div>
 
           <div className="control-group">
-            <label>Articles per source</label>
+            <label htmlFor="fetch-max">Articles per source</label>
             <select
+              id="fetch-max"
               value={maxArticles}
               onChange={(e) => setMaxArticles(Number(e.target.value))}
               disabled={fetching}

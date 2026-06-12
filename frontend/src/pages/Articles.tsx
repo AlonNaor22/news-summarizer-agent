@@ -81,6 +81,7 @@ function Articles() {
           <select
             value={category}
             onChange={(e) => handleFilterChange('category', e.target.value)}
+            aria-label="Filter by category"
           >
             <option value="">All Categories</option>
             {stats?.by_category && Object.keys(stats.by_category).map(cat => (
@@ -91,6 +92,7 @@ function Articles() {
           <select
             value={sentiment}
             onChange={(e) => handleFilterChange('sentiment', e.target.value)}
+            aria-label="Filter by sentiment"
           >
             <option value="">All Sentiments</option>
             <option value="positive">Positive ({stats?.by_sentiment?.positive || 0})</option>
@@ -101,6 +103,7 @@ function Articles() {
           <select
             value={source}
             onChange={(e) => handleFilterChange('source', e.target.value)}
+            aria-label="Filter by source"
           >
             <option value="">All Sources</option>
             {stats?.by_source && Object.keys(stats.by_source).map(src => (
