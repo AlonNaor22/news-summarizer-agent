@@ -63,7 +63,7 @@ class StoryComparison(BaseModel):
     """A :class:`ComparisonResult` enriched with story-level metadata.
 
     Returned by :func:`compare_sources`. ``source_analyses`` is keyed by
-    source name so the FastAPI JSON response and frontend ``Compare.jsx``
+    source name so the FastAPI JSON response and frontend ``Compare.tsx``
     can keep iterating over ``Object.entries(...)``.
     """
 

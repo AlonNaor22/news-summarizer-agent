@@ -287,9 +287,12 @@ news-summarizer-agent/
 │
 ├── backend/                # FastAPI backend (NEW!)
 │   ├── main.py             # FastAPI app entry point
+│   ├── db.py               # SQLAlchemy persistence (articles + Q&A history)
 │   ├── requirements.txt    # Backend dependencies
 │   └── api/
-│       ├── dependencies.py # Shared state management
+│       ├── dependencies.py # Per-session state management
+│       ├── limiter.py      # Shared rate-limiter
+│       ├── messages.py     # Client-facing API strings
 │       └── routes/
 │           ├── articles.py # Article endpoints
 │           ├── sentiment.py# Sentiment endpoints
@@ -298,25 +301,27 @@ news-summarizer-agent/
 │           ├── comparison.py # Source comparison
 │           └── qa.py       # Q&A endpoints
 │
-├── frontend/               # React frontend (NEW!)
+├── frontend/               # React + TypeScript frontend (NEW!)
 │   ├── package.json
 │   ├── vite.config.js
 │   └── src/
-│       ├── App.jsx
+│       ├── App.tsx
+│       ├── types.ts        # Shared TypeScript types
+│       ├── strings.ts      # Centralized user-facing copy
 │       ├── services/
-│       │   └── api.js      # API client
+│       │   └── api.ts      # API client
 │       ├── components/
-│       │   ├── Navbar.jsx
-│       │   ├── ArticleCard.jsx
-│       │   ├── SentimentBadge.jsx
+│       │   ├── Navbar.tsx
+│       │   ├── ArticleCard.tsx
+│       │   ├── SentimentBadge.tsx
 │       │   └── ...
 │       └── pages/
-│           ├── Dashboard.jsx
-│           ├── Articles.jsx
-│           ├── ArticleDetail.jsx
-│           ├── Trending.jsx
-│           ├── Compare.jsx
-│           └── Chat.jsx
+│           ├── Dashboard.tsx
+│           ├── Articles.tsx
+│           ├── ArticleDetail.tsx
+│           ├── Trending.tsx
+│           ├── Compare.tsx
+│           └── Chat.tsx
 │
 ├── src/                    # Core AI modules
 │   ├── news_fetcher.py     # RSS + NewsAPI fetching
