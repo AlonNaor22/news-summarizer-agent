@@ -11,6 +11,7 @@ from src.comparator import (
     summarize_bias_findings
 )
 
+from api import messages
 from api.dependencies import AppState, get_session_state
 
 router = APIRouter()
@@ -71,13 +72,13 @@ async def compare_specific_articles(
     articles_to_compare = []
     for aid in request.article_ids:
         if aid < 0 or aid >= len(state.articles):
-            raise HTTPException(status_code=404, detail=f"Article {aid} not found")
+            raise HTTPException(status_code=404, detail=messages.article_not_found(aid))
         articles_to_compare.append(state.articles[aid])
 
     if len(articles_to_compare) < 2:
         raise HTTPException(
             status_code=400,
-            detail="Need at least 2 articles to compare"
+            detail=messages.NEED_TWO_TO_COMPARE,
         )
 
     comparison = compare_sources(articles_to_compare)
@@ -110,7 +111,7 @@ def get_bias_analysis(state: AppState = Depends(get_session_state)):
             "sources_analyzed": [],
             "bias_mentions": {},
             "tone_distribution": {},
-            "message": "No multi-source stories found for bias analysis"
+            "message": messages.NO_MULTISOURCE_STORIES,
         }
 
     bias_summary = summarize_bias_findings(comparisons)

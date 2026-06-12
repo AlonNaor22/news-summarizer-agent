@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from api import messages
 from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
 
@@ -39,7 +40,7 @@ def ask_question(
     if not state.articles:
         raise HTTPException(
             status_code=400,
-            detail="No articles loaded. Please fetch articles first."
+            detail=messages.NO_ARTICLES_LOADED,
         )
 
     try:
@@ -55,7 +56,7 @@ def ask_question(
     except Exception:
         request_id = uuid.uuid4()
         logger.exception("Unhandled error in ask_question [request_id=%s]", request_id)
-        raise HTTPException(status_code=500, detail=f"Internal error answering question (id={request_id})")
+        raise HTTPException(status_code=500, detail=messages.qa_failed(request_id))
 
 
 def _sse_event(event_type: str, payload: dict) -> bytes:
@@ -80,7 +81,7 @@ async def ask_question_stream(
     if not state.articles:
         raise HTTPException(
             status_code=400,
-            detail="No articles loaded. Please fetch articles first.",
+            detail=messages.NO_ARTICLES_LOADED,
         )
 
     qa_chain = state.qa_chain
@@ -103,7 +104,7 @@ async def ask_question_stream(
             )
             yield _sse_event(
                 "error",
-                {"detail": f"Internal error answering question (id={request_id})"},
+                {"detail": messages.qa_failed(request_id)},
             )
 
     return StreamingResponse(
@@ -141,7 +142,7 @@ async def clear_conversation_history(state: AppState = Depends(get_session_state
     """Clear the conversation history (keeps the loaded articles)."""
     state.clear_qa_history()
 
-    return {"message": "Conversation history cleared"}
+    return {"message": messages.CONVERSATION_HISTORY_CLEARED}
 
 
 @router.get("/qa/status")

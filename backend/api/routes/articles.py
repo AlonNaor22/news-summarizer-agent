@@ -13,6 +13,7 @@ from src.news_fetcher import fetch_news
 from src.pipeline import process_articles_async
 from src.rag import embed_articles, semantic_search
 
+from api import messages
 from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
 
@@ -52,7 +53,7 @@ async def fetch_articles(
         )
 
         if not articles:
-            return {"articles": [], "total": 0, "message": "No articles fetched"}
+            return {"articles": [], "total": 0, "message": messages.NO_ARTICLES_FETCHED}
 
         if body.process:
             articles = await process_articles_async(articles)
@@ -75,13 +76,13 @@ async def fetch_articles(
         return {
             "articles": articles,
             "total": len(articles),
-            "message": f"Successfully fetched and processed {len(articles)} articles",
+            "message": messages.fetch_succeeded(len(articles)),
         }
 
     except Exception:
         request_id = uuid.uuid4()
         logger.exception("Unhandled error in fetch_articles [request_id=%s]", request_id)
-        raise HTTPException(status_code=500, detail=f"Internal error processing fetch (id={request_id})")
+        raise HTTPException(status_code=500, detail=messages.fetch_failed(request_id))
 
 
 @router.get("/articles")
@@ -199,7 +200,7 @@ async def get_article(
 ):
     """Get a single article by ID."""
     if article_id < 0 or article_id >= len(state.articles):
-        raise HTTPException(status_code=404, detail="Article not found")
+        raise HTTPException(status_code=404, detail=messages.ARTICLE_NOT_FOUND)
 
     return state.articles[article_id]
 
@@ -245,4 +246,4 @@ async def get_stats(state: AppState = Depends(get_session_state)):
 async def clear_articles(state: AppState = Depends(get_session_state)):
     """Clear all stored articles for this session."""
     state.clear()
-    return {"message": "All articles cleared"}
+    return {"message": messages.ALL_ARTICLES_CLEARED}

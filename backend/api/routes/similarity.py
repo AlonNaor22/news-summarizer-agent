@@ -8,6 +8,7 @@ from src.similarity import (
     calculate_combined_similarity
 )
 
+from api import messages
 from api.dependencies import AppState, get_session_state
 
 router = APIRouter()
@@ -27,7 +28,7 @@ async def get_similar_articles(
     ``max_results``; set ``use_llm`` for deeper AI relationship analysis.
     """
     if article_id < 0 or article_id >= len(state.articles):
-        raise HTTPException(status_code=404, detail="Article not found")
+        raise HTTPException(status_code=404, detail=messages.ARTICLE_NOT_FOUND)
 
     target = state.articles[article_id]
     similar = find_similar_articles(
@@ -139,10 +140,10 @@ async def compare_two_articles(
 ):
     """Compare two specific articles and return their similarity breakdown."""
     if article_id_a < 0 or article_id_a >= len(state.articles):
-        raise HTTPException(status_code=404, detail=f"Article {article_id_a} not found")
+        raise HTTPException(status_code=404, detail=messages.article_not_found(article_id_a))
 
     if article_id_b < 0 or article_id_b >= len(state.articles):
-        raise HTTPException(status_code=404, detail=f"Article {article_id_b} not found")
+        raise HTTPException(status_code=404, detail=messages.article_not_found(article_id_b))
 
     article_a = state.articles[article_id_a]
     article_b = state.articles[article_id_b]

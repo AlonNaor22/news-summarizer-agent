@@ -5,6 +5,7 @@ from typing import Optional
 
 from src.sentiment import get_sentiment_summary, filter_by_sentiment
 
+from api import messages
 from api.dependencies import AppState, get_session_state
 
 router = APIRouter()
@@ -37,7 +38,7 @@ async def get_articles_by_sentiment(
     """Return articles filtered by sentiment type (positive/negative/neutral)."""
     if sentiment_type.lower() not in ["positive", "negative", "neutral"]:
         return {
-            "error": "Invalid sentiment type. Use: positive, negative, or neutral",
+            "error": messages.INVALID_SENTIMENT_TYPE,
             "articles": []
         }
 
