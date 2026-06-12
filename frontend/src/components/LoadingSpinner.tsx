@@ -1,3 +1,4 @@
+import { strings } from '../strings';
 import './LoadingSpinner.css';
 
 interface Props {
@@ -5,7 +6,7 @@ interface Props {
   message?: string;
 }
 
-function LoadingSpinner({ size = 'medium', message = 'Loading...' }: Props) {
+function LoadingSpinner({ size = 'medium', message = strings.common.loading }: Props) {
   return (
     <div className="loading-container">
       <div className={`spinner ${size}`}></div>

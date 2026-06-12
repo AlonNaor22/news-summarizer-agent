@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { trendingApi } from '../services/api';
 import type { TrendData } from '../types';
+import { strings } from '../strings';
 import TrendingKeywords from '../components/TrendingKeywords';
 import LoadingSpinner from '../components/LoadingSpinner';
 import './Trending.css';
@@ -44,15 +45,15 @@ function Trending() {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading trending topics..." />;
+    return <LoadingSpinner message={strings.trending.loading} />;
   }
 
   return (
     <div className="trending-page">
       <div className="trending-header">
         <div>
-          <h1>Trending Topics</h1>
-          <p>See what topics are being discussed across {trends?.total_articles || 0} articles</p>
+          <h1>{strings.trending.title}</h1>
+          <p>{strings.trending.subtitle(trends?.total_articles || 0)}</p>
         </div>
 
         {!useLlm && (
@@ -61,20 +62,20 @@ function Trending() {
             onClick={handleAnalyzeWithAI}
             disabled={analyzing}
           >
-            {analyzing ? 'Analyzing...' : 'Analyze with AI'}
+            {analyzing ? strings.trending.analyzing : strings.trending.analyzeWithAi}
           </button>
         )}
       </div>
 
       {analyzing && (
         <div className="analyzing-banner">
-          <LoadingSpinner size="small" message="AI is analyzing article themes and patterns..." />
+          <LoadingSpinner size="small" message={strings.trending.analyzingBanner} />
         </div>
       )}
 
       {useLlm && (trends?.llm_trends?.length ?? 0) > 0 && (
         <section className="trend-section">
-          <h2>AI-Detected Themes</h2>
+          <h2>{strings.trending.aiThemes}</h2>
           <div className="llm-trends">
             {trends?.llm_trends?.map((trend) => (
               <div key={trend.name} className={`llm-trend-card strength-${trend.strength}`}>
@@ -86,10 +87,10 @@ function Trending() {
                 </div>
                 <p className="trend-description">{trend.description}</p>
                 <div className="trend-meta">
-                  <span>{trend.article_count} articles</span>
+                  <span>{strings.trending.articlesCount(trend.article_count)}</span>
                   {(trend.keywords?.length ?? 0) > 0 && (
                     <span className="trend-keywords">
-                      Keywords: {trend.keywords?.slice(0, 5).join(', ')}
+                      {strings.trending.keywordsLabel} {trend.keywords?.slice(0, 5).join(', ')}
                     </span>
                   )}
                 </div>
@@ -100,7 +101,7 @@ function Trending() {
       )}
 
       <section className="trend-section">
-        <h2>Trending Keywords</h2>
+        <h2>{strings.trending.trendingKeywords}</h2>
         <TrendingKeywords
           keywords={trends?.keyword_trends || []}
           onKeywordClick={(kw) => navigate(`/articles?keyword=${encodeURIComponent(kw)}`)}
@@ -110,7 +111,7 @@ function Trending() {
       <div className="entity-sections">
         {(trends?.entity_trends?.people?.length ?? 0) > 0 && (
           <section className="entity-section">
-            <h2>Trending People</h2>
+            <h2>{strings.trending.trendingPeople}</h2>
             <div className="entity-list">
               {trends?.entity_trends?.people?.map(([name, count]) => (
                 <div key={name} className="entity-item">
@@ -125,7 +126,7 @@ function Trending() {
 
         {(trends?.entity_trends?.organizations?.length ?? 0) > 0 && (
           <section className="entity-section">
-            <h2>Trending Organizations</h2>
+            <h2>{strings.trending.trendingOrganizations}</h2>
             <div className="entity-list">
               {trends?.entity_trends?.organizations?.map(([name, count]) => (
                 <div key={name} className="entity-item">
@@ -140,7 +141,7 @@ function Trending() {
 
         {(trends?.entity_trends?.locations?.length ?? 0) > 0 && (
           <section className="entity-section">
-            <h2>Trending Locations</h2>
+            <h2>{strings.trending.trendingLocations}</h2>
             <div className="entity-list">
               {trends?.entity_trends?.locations?.map(([name, count]) => (
                 <div key={name} className="entity-item">
@@ -156,8 +157,8 @@ function Trending() {
 
       {(!trends?.keyword_trends || trends.keyword_trends.length === 0) && (
         <div className="empty-state">
-          <p>No trending topics yet.</p>
-          <Link to="/" className="btn btn-primary">Fetch some articles first</Link>
+          <p>{strings.trending.none}</p>
+          <Link to="/" className="btn btn-primary">{strings.trending.fetchFirst}</Link>
         </div>
       )}
     </div>

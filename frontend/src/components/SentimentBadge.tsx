@@ -1,3 +1,4 @@
+import { strings } from '../strings';
 import './SentimentBadge.css';
 
 interface Props {
@@ -33,7 +34,7 @@ function SentimentBadge({ sentiment, showLabel = true }: Props) {
   return (
     <span className={getClass()}>
       <span className="sentiment-emoji">{getEmoji()}</span>
-      {showLabel && <span className="sentiment-label">{sentiment || 'Unknown'}</span>}
+      {showLabel && <span className="sentiment-label">{sentiment || strings.common.unknown}</span>}
     </span>
   );
 }

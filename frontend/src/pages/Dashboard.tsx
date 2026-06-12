@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { articlesApi, sentimentApi, trendingApi } from '../services/api';
 import type { Stats, SentimentOverview, KeywordTrend } from '../types';
+import { strings } from '../strings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TrendingKeywords from '../components/TrendingKeywords';
 import './Dashboard.css';
@@ -49,7 +50,7 @@ function Dashboard() {
       await loadData();
     } catch (err) {
       const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
-      setError(detail || 'Error fetching articles');
+      setError(detail || strings.dashboard.fetchError);
       console.error('Fetch error:', err);
     } finally {
       setFetching(false);
@@ -66,36 +67,36 @@ function Dashboard() {
   };
 
   if (loading && !stats) {
-    return <LoadingSpinner message="Loading dashboard..." />;
+    return <LoadingSpinner message={strings.dashboard.loading} />;
   }
 
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>News Dashboard</h1>
-        <p>Fetch, summarize, and analyze news articles with AI</p>
+        <h1>{strings.dashboard.title}</h1>
+        <p>{strings.dashboard.subtitle}</p>
       </div>
 
       <div className="fetch-section card">
-        <h2>Fetch News</h2>
+        <h2>{strings.dashboard.fetchHeading}</h2>
 
         <div className="fetch-controls">
           <div className="control-group">
-            <label htmlFor="fetch-source">Source</label>
+            <label htmlFor="fetch-source">{strings.dashboard.sourceLabel}</label>
             <select
               id="fetch-source"
               value={fetchSource}
               onChange={(e) => setFetchSource(e.target.value)}
               disabled={fetching}
             >
-              <option value="rss">RSS Feeds</option>
-              <option value="newsapi">NewsAPI</option>
-              <option value="both">Both</option>
+              <option value="rss">{strings.dashboard.sourceRss}</option>
+              <option value="newsapi">{strings.dashboard.sourceNewsapi}</option>
+              <option value="both">{strings.dashboard.sourceBoth}</option>
             </select>
           </div>
 
           <div className="control-group">
-            <label htmlFor="fetch-max">Articles per source</label>
+            <label htmlFor="fetch-max">{strings.dashboard.perSourceLabel}</label>
             <select
               id="fetch-max"
               value={maxArticles}
@@ -113,7 +114,7 @@ function Dashboard() {
             onClick={handleFetchNews}
             disabled={fetching}
           >
-            {fetching ? 'Fetching & Processing...' : 'Fetch News'}
+            {fetching ? strings.dashboard.fetchingButton : strings.dashboard.fetchButton}
           </button>
 
           {(stats?.total ?? 0) > 0 && (
@@ -122,7 +123,7 @@ function Dashboard() {
               onClick={handleClearArticles}
               disabled={fetching}
             >
-              Clear All
+              {strings.common.clearAll}
             </button>
           )}
         </div>
@@ -131,7 +132,7 @@ function Dashboard() {
 
         {fetching && (
           <div className="fetch-progress">
-            <LoadingSpinner size="small" message="Fetching and processing articles with AI... This may take a moment." />
+            <LoadingSpinner size="small" message={strings.dashboard.fetchProgress} />
           </div>
         )}
       </div>
@@ -139,22 +140,22 @@ function Dashboard() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-value">{stats?.total || 0}</div>
-          <div className="stat-label">Total Articles</div>
+          <div className="stat-label">{strings.dashboard.totalArticles}</div>
         </div>
 
         <div className="stat-card positive">
           <div className="stat-value">{sentiment?.positive || 0}</div>
-          <div className="stat-label">Positive</div>
+          <div className="stat-label">{strings.dashboard.positive}</div>
         </div>
 
         <div className="stat-card negative">
           <div className="stat-value">{sentiment?.negative || 0}</div>
-          <div className="stat-label">Negative</div>
+          <div className="stat-label">{strings.dashboard.negative}</div>
         </div>
 
         <div className="stat-card neutral">
           <div className="stat-value">{sentiment?.neutral || 0}</div>
-          <div className="stat-label">Neutral</div>
+          <div className="stat-label">{strings.dashboard.neutral}</div>
         </div>
       </div>
 
@@ -162,7 +163,7 @@ function Dashboard() {
         <>
           <div className="dashboard-section">
             <div className="section-header">
-              <h2>Sentiment Distribution</h2>
+              <h2>{strings.dashboard.sentimentDistribution}</h2>
             </div>
             <div className="sentiment-bars">
               {sentiment?.breakdown && Object.entries(sentiment.breakdown).map(([type, percentage]) => (
@@ -182,16 +183,16 @@ function Dashboard() {
 
           <div className="dashboard-section">
             <div className="section-header">
-              <h2>Trending Keywords</h2>
-              <Link to="/trending" className="section-link">View all</Link>
+              <h2>{strings.dashboard.trendingKeywords}</h2>
+              <Link to="/trending" className="section-link">{strings.common.viewAll}</Link>
             </div>
             <TrendingKeywords keywords={keywords} />
           </div>
 
           <div className="dashboard-section">
             <div className="section-header">
-              <h2>Articles by Category</h2>
-              <Link to="/articles" className="section-link">View all</Link>
+              <h2>{strings.dashboard.articlesByCategory}</h2>
+              <Link to="/articles" className="section-link">{strings.common.viewAll}</Link>
             </div>
             <div className="category-list">
               {stats?.by_category && Object.entries(stats.by_category).map(([category, count]) => (

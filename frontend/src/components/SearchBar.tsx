@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { strings } from '../strings';
 import './SearchBar.css';
 
 interface Props {
@@ -6,7 +7,7 @@ interface Props {
   placeholder?: string;
 }
 
-function SearchBar({ onSearch, placeholder = 'Search articles...' }: Props) {
+function SearchBar({ onSearch, placeholder = strings.articles.searchPlaceholder }: Props) {
   const [query, setQuery] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -27,7 +28,7 @@ function SearchBar({ onSearch, placeholder = 'Search articles...' }: Props) {
         onChange={(e) => setQuery(e.target.value)}
       />
       <button type="submit" className="search-button">
-        Search
+        {strings.common.search}
       </button>
     </form>
   );

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import SentimentBadge from './SentimentBadge';
 import type { Article } from '../types';
+import { strings } from '../strings';
 import './ArticleCard.css';
 
 interface Props {
@@ -52,7 +53,7 @@ function ArticleCard({ article }: Props) {
         {published && <span className="article-date">{published}</span>}
         {url && (
           <a href={url} target="_blank" rel="noopener noreferrer" className="article-link">
-            Read full article
+            {strings.articleCard.readFull}
           </a>
         )}
       </div>

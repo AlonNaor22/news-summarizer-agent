@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { strings } from '../strings';
 import './Navbar.css';
 
 function Navbar() {
@@ -6,7 +7,7 @@ function Navbar() {
     <nav className="navbar">
       <div className="navbar-container">
         <NavLink to="/" className="navbar-brand">
-          News Summarizer
+          {strings.nav.brand}
         </NavLink>
 
         <div className="navbar-links">
@@ -14,35 +15,35 @@ function Navbar() {
             to="/"
             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
           >
-            Dashboard
+            {strings.nav.dashboard}
           </NavLink>
 
           <NavLink
             to="/articles"
             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
           >
-            Articles
+            {strings.nav.articles}
           </NavLink>
 
           <NavLink
             to="/trending"
             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
           >
-            Trending
+            {strings.nav.trending}
           </NavLink>
 
           <NavLink
             to="/compare"
             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
           >
-            Compare
+            {strings.nav.compare}
           </NavLink>
 
           <NavLink
             to="/chat"
             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
           >
-            Chat
+            {strings.nav.chat}
           </NavLink>
         </div>
       </div>

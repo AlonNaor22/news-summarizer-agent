@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { articlesApi } from '../services/api';
 import type { Article, Stats } from '../types';
+import { strings } from '../strings';
 import ArticleCard from '../components/ArticleCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -70,20 +71,20 @@ function Articles() {
   return (
     <div className="articles-page">
       <div className="articles-header">
-        <h1>Articles</h1>
-        <p>{total} articles found</p>
+        <h1>{strings.articles.title}</h1>
+        <p>{strings.articles.found(total)}</p>
       </div>
 
       <div className="articles-filters">
-        <SearchBar onSearch={handleSearch} placeholder="Search articles..." />
+        <SearchBar onSearch={handleSearch} placeholder={strings.articles.searchPlaceholder} />
 
         <div className="filter-group">
           <select
             value={category}
             onChange={(e) => handleFilterChange('category', e.target.value)}
-            aria-label="Filter by category"
+            aria-label={strings.articles.filterByCategory}
           >
-            <option value="">All Categories</option>
+            <option value="">{strings.articles.allCategories}</option>
             {stats?.by_category && Object.keys(stats.by_category).map(cat => (
               <option key={cat} value={cat}>{cat} ({stats.by_category[cat]})</option>
             ))}
@@ -92,20 +93,20 @@ function Articles() {
           <select
             value={sentiment}
             onChange={(e) => handleFilterChange('sentiment', e.target.value)}
-            aria-label="Filter by sentiment"
+            aria-label={strings.articles.filterBySentiment}
           >
-            <option value="">All Sentiments</option>
-            <option value="positive">Positive ({stats?.by_sentiment?.positive || 0})</option>
-            <option value="negative">Negative ({stats?.by_sentiment?.negative || 0})</option>
-            <option value="neutral">Neutral ({stats?.by_sentiment?.neutral || 0})</option>
+            <option value="">{strings.articles.allSentiments}</option>
+            <option value="positive">{strings.articles.positive} ({stats?.by_sentiment?.positive || 0})</option>
+            <option value="negative">{strings.articles.negative} ({stats?.by_sentiment?.negative || 0})</option>
+            <option value="neutral">{strings.articles.neutral} ({stats?.by_sentiment?.neutral || 0})</option>
           </select>
 
           <select
             value={source}
             onChange={(e) => handleFilterChange('source', e.target.value)}
-            aria-label="Filter by source"
+            aria-label={strings.articles.filterBySource}
           >
-            <option value="">All Sources</option>
+            <option value="">{strings.articles.allSources}</option>
             {stats?.by_source && Object.keys(stats.by_source).map(src => (
               <option key={src} value={src}>{src} ({stats.by_source[src]})</option>
             ))}
@@ -113,18 +114,18 @@ function Articles() {
 
           {hasFilters && (
             <button className="btn-clear" onClick={clearFilters}>
-              Clear Filters
+              {strings.articles.clearFilters}
             </button>
           )}
         </div>
       </div>
 
       {loading ? (
-        <LoadingSpinner message="Loading articles..." />
+        <LoadingSpinner message={strings.articles.loading} />
       ) : articles.length === 0 ? (
         <div className="no-articles">
-          <p>No articles found.</p>
-          {hasFilters && <p>Try adjusting your filters or search query.</p>}
+          <p>{strings.articles.none}</p>
+          {hasFilters && <p>{strings.articles.adjustFilters}</p>}
         </div>
       ) : (
         <div className="articles-grid">

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { articlesApi, similarityApi } from '../services/api';
 import type { Article } from '../types';
+import { strings } from '../strings';
 import SentimentBadge from '../components/SentimentBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import './ArticleDetail.css';
@@ -27,7 +28,7 @@ function ArticleDetail() {
         setArticle(articleRes.data);
         setSimilar(similarRes.data.similar_articles || []);
       } catch (err) {
-        setError('Article not found');
+        setError(strings.articleDetail.notFound);
         console.error('Error loading article:', err);
       } finally {
         setLoading(false);
@@ -38,16 +39,16 @@ function ArticleDetail() {
   }, [id]);
 
   if (loading) {
-    return <LoadingSpinner message="Loading article..." />;
+    return <LoadingSpinner message={strings.articleDetail.loading} />;
   }
 
   if (error || !article) {
     return (
       <div className="article-detail-page">
         <div className="error-state">
-          <h2>Article Not Found</h2>
-          <p>{error || 'The article you are looking for does not exist.'}</p>
-          <Link to="/articles" className="btn btn-primary">Back to Articles</Link>
+          <h2>{strings.articleDetail.notFoundTitle}</h2>
+          <p>{error || strings.articleDetail.notFoundBody}</p>
+          <Link to="/articles" className="btn btn-primary">{strings.common.backToArticles}</Link>
         </div>
       </div>
     );
@@ -56,7 +57,7 @@ function ArticleDetail() {
   return (
     <div className="article-detail-page">
       <div className="back-link">
-        <Link to="/articles">Back to Articles</Link>
+        <Link to="/articles">{strings.common.backToArticles}</Link>
       </div>
 
       <article className="article-content">
@@ -77,17 +78,17 @@ function ArticleDetail() {
         </header>
 
         <section className="article-summary">
-          <h2>Summary</h2>
+          <h2>{strings.articleDetail.summary}</h2>
           <p>{article.summary}</p>
         </section>
 
         {article.sentiment_reason && (
           <section className="article-sentiment-reason">
-            <h2>Sentiment Analysis</h2>
+            <h2>{strings.articleDetail.sentimentAnalysis}</h2>
             <div className="sentiment-detail">
               <SentimentBadge sentiment={article.sentiment} />
               <span className="confidence">
-                Confidence: {article.sentiment_confidence}
+                {strings.articleDetail.confidenceLabel} {article.sentiment_confidence}
               </span>
             </div>
             <p>{article.sentiment_reason}</p>
@@ -97,11 +98,11 @@ function ArticleDetail() {
         {((article.keywords?.length ?? 0) > 0 || (article.people?.length ?? 0) > 0 ||
           (article.organizations?.length ?? 0) > 0 || (article.locations?.length ?? 0) > 0) && (
           <section className="article-tags">
-            <h2>Tags & Entities</h2>
+            <h2>{strings.articleDetail.tagsAndEntities}</h2>
 
             {(article.keywords?.length ?? 0) > 0 && (
               <div className="tag-group">
-                <h3>Keywords</h3>
+                <h3>{strings.articleDetail.keywords}</h3>
                 <div className="tags">
                   {article.keywords?.map((kw) => (
                     <Link key={kw} to={`/articles?keyword=${encodeURIComponent(kw)}`} className="tag keyword">
@@ -114,7 +115,7 @@ function ArticleDetail() {
 
             {(article.people?.length ?? 0) > 0 && (
               <div className="tag-group">
-                <h3>People</h3>
+                <h3>{strings.articleDetail.people}</h3>
                 <div className="tags">
                   {article.people?.map((person) => (
                     <span key={person} className="tag person">{person}</span>
@@ -125,7 +126,7 @@ function ArticleDetail() {
 
             {(article.organizations?.length ?? 0) > 0 && (
               <div className="tag-group">
-                <h3>Organizations</h3>
+                <h3>{strings.articleDetail.organizations}</h3>
                 <div className="tags">
                   {article.organizations?.map((org) => (
                     <span key={org} className="tag organization">{org}</span>
@@ -136,7 +137,7 @@ function ArticleDetail() {
 
             {(article.locations?.length ?? 0) > 0 && (
               <div className="tag-group">
-                <h3>Locations</h3>
+                <h3>{strings.articleDetail.locations}</h3>
                 <div className="tags">
                   {article.locations?.map((loc) => (
                     <span key={loc} className="tag location">{loc}</span>
@@ -150,7 +151,7 @@ function ArticleDetail() {
         {article.url && (
           <section className="article-original">
             <a href={article.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
-              Read Original Article
+              {strings.articleDetail.readOriginal}
             </a>
           </section>
         )}
@@ -158,7 +159,7 @@ function ArticleDetail() {
 
       {similar.length > 0 && (
         <aside className="similar-articles">
-          <h2>Similar Articles</h2>
+          <h2>{strings.articleDetail.similar}</h2>
           <div className="similar-list">
             {similar.map((item) => (
               <Link key={item.id} to={`/articles/${item.id}`} className="similar-item">
@@ -166,7 +167,7 @@ function ArticleDetail() {
                 <div className="similar-meta">
                   <span className="similar-source">{item.source}</span>
                   <span className="similar-score">
-                    {Math.round((item.similarity?.overall || 0) * 100)}% similar
+                    {strings.articleDetail.percentSimilar(Math.round((item.similarity?.overall || 0) * 100))}
                   </span>
                 </div>
               </Link>

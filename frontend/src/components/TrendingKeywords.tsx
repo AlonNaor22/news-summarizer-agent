@@ -1,5 +1,6 @@
 import './TrendingKeywords.css';
 import type { KeywordTrend } from '../types';
+import { strings } from '../strings';
 
 interface Props {
   keywords: KeywordTrend[];
@@ -8,7 +9,7 @@ interface Props {
 
 function TrendingKeywords({ keywords, onKeywordClick }: Props) {
   if (!keywords || keywords.length === 0) {
-    return <p className="no-keywords">No trending keywords yet</p>;
+    return <p className="no-keywords">{strings.trending.noKeywords}</p>;
   }
 
   const maxCount = Math.max(...keywords.map(k => k.count));

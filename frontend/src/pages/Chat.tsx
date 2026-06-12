@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { qaApi } from '../services/api';
 import type { ChatMessage, QaStatus } from '../types';
+import { strings } from '../strings';
 import './Chat.css';
 
 function Chat() {
@@ -98,7 +99,7 @@ function Chat() {
         },
       });
     } catch (err) {
-      streamErrorDetail = err instanceof Error ? err.message : 'Streaming failed.';
+      streamErrorDetail = err instanceof Error ? err.message : strings.chat.streamingFailed;
     }
 
     if (streamErrorDetail && !receivedAnyChunk) {
@@ -109,11 +110,11 @@ function Chat() {
         const detail = axios.isAxiosError(fallbackErr)
           ? fallbackErr.response?.data?.detail
           : null;
-        const errorMessage = detail || streamErrorDetail || 'Sorry, something went wrong.';
-        replaceLastAssistant(`Error: ${errorMessage}`);
+        const errorMessage = detail || streamErrorDetail || strings.chat.genericError;
+        replaceLastAssistant(strings.chat.errorPrefix(errorMessage));
       }
     } else if (streamErrorDetail) {
-      appendToLastAssistant(`\n\n[Error mid-stream: ${streamErrorDetail}]`);
+      appendToLastAssistant(strings.chat.midStreamError(streamErrorDetail));
     }
 
     setLoading(false);
@@ -128,13 +129,7 @@ function Chat() {
     }
   };
 
-  const suggestedQuestions = [
-    "What are the main technology news today?",
-    "Which articles have negative sentiment?",
-    "Summarize the business news",
-    "What topics are most covered?",
-    "Compare different news sources"
-  ];
+  const suggestedQuestions = strings.chat.suggestedQuestions;
 
   const handleSuggestion = (question: string) => {
     setInput(question);
@@ -145,17 +140,17 @@ function Chat() {
       <div className="chat-container">
         <div className="chat-header">
           <div className="chat-title">
-            <h1>Chat with News</h1>
+            <h1>{strings.chat.title}</h1>
             {(status?.articles_loaded ?? 0) > 0 && (
               <span className="article-count">
-                {status?.articles_loaded} articles loaded
+                {strings.chat.articlesLoaded(status?.articles_loaded ?? 0)}
               </span>
             )}
           </div>
 
           {messages.length > 0 && (
             <button className="btn-clear" onClick={handleClearHistory}>
-              Clear Chat
+              {strings.chat.clearChat}
             </button>
           )}
         </div>
@@ -163,20 +158,20 @@ function Chat() {
         {!status?.ready ? (
           <div className="chat-empty">
             <div className="empty-icon">💬</div>
-            <h2>No Articles Loaded</h2>
-            <p>Fetch some news articles first to start chatting about them.</p>
-            <Link to="/" className="btn btn-primary">Go to Dashboard</Link>
+            <h2>{strings.chat.noArticlesTitle}</h2>
+            <p>{strings.chat.noArticlesBody}</p>
+            <Link to="/" className="btn btn-primary">{strings.common.goToDashboard}</Link>
           </div>
         ) : (
           <>
             <div className="messages-container">
               {messages.length === 0 && (
                 <div className="chat-welcome">
-                  <h2>Ask questions about your news</h2>
-                  <p>I can help you understand, compare, and analyze the articles you've fetched.</p>
+                  <h2>{strings.chat.welcomeTitle}</h2>
+                  <p>{strings.chat.welcomeBody}</p>
 
                   <div className="suggestions">
-                    <p className="suggestions-label">Try asking:</p>
+                    <p className="suggestions-label">{strings.chat.tryAsking}</p>
                     <div className="suggestion-buttons">
                       {suggestedQuestions.map((q) => (
                         <button
@@ -222,8 +217,8 @@ function Chat() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask a question about the news..."
-                aria-label="Ask a question about the news"
+                placeholder={strings.chat.inputPlaceholder}
+                aria-label={strings.chat.inputLabel}
                 disabled={loading}
                 className="chat-input"
               />
@@ -232,7 +227,7 @@ function Chat() {
                 disabled={loading || !input.trim()}
                 className="send-button"
               >
-                {loading ? '...' : 'Send'}
+                {loading ? strings.chat.sending : strings.chat.send}
               </button>
             </form>
           </>
