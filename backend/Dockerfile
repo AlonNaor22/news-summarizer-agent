@@ -16,7 +16,11 @@ COPY pyproject.toml README.md main.py config.py ./
 COPY src/ ./src/
 COPY backend/ ./backend/
 
-RUN pip install -e .[backend]
+RUN pip install -e .[backend] \
+    && useradd --create-home --uid 1000 appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 
