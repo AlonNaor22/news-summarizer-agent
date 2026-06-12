@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { trendingApi } from '../services/api';
 import type { TrendData } from '../types';
 import TrendingKeywords from '../components/TrendingKeywords';
@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import './Trending.css';
 
 function Trending() {
+  const navigate = useNavigate();
   const [trends, setTrends] = useState<TrendData | null>(null);
   const [loading, setLoading] = useState(true);
   const [useLlm, setUseLlm] = useState(false);
@@ -102,7 +103,7 @@ function Trending() {
         <h2>Trending Keywords</h2>
         <TrendingKeywords
           keywords={trends?.keyword_trends || []}
-          onKeywordClick={(kw) => window.location.href = `/articles?keyword=${encodeURIComponent(kw)}`}
+          onKeywordClick={(kw) => navigate(`/articles?keyword=${encodeURIComponent(kw)}`)}
         />
       </section>
 
