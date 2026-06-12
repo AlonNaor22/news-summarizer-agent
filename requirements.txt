@@ -1,10 +1,10 @@
 # Core dependencies — pins match pyproject.toml to avoid LangChain breaking changes.
 # Prefer `pip install -e .[dev]` (pyproject.toml) as the canonical install path.
 
-langchain>=0.3.0,<0.4.0
-langchain-anthropic>=0.3.0,<0.4.0
-langchain-chroma>=0.1.4
-langchain-huggingface>=0.1.0
+langchain>=1.2,<2.0
+langchain-anthropic>=1.4,<2.0
+langchain-chroma>=1.1,<2.0
+langchain-huggingface>=1.2,<2.0
 chromadb>=0.5.0
 sentence-transformers>=2.7.0
 anthropic>=0.40.0
