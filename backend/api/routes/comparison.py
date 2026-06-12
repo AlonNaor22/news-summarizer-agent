@@ -98,12 +98,16 @@ async def compare_specific_articles(
 
 
 @router.get("/comparison/bias")
-async def get_bias_analysis(state: AppState = Depends(get_session_state)):
+def get_bias_analysis(state: AppState = Depends(get_session_state)):
     """
     Get bias analysis summary across all comparisons.
 
     Shows which sources have been flagged for potential bias
     and their overall tone distribution.
+
+    Declared ``def`` (not ``async``) like its ``/comparison`` sibling: the
+    work is entirely blocking (``compare_all_stories``), so FastAPI runs it
+    in the threadpool instead of stalling the event loop.
     """
     if len(state.articles) < 2:
         return {

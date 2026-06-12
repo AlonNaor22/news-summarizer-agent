@@ -1,5 +1,6 @@
 """Articles API routes — fetching, processing, and managing news articles."""
 
+import asyncio
 import logging
 import uuid
 from typing import Optional
@@ -38,10 +39,14 @@ async def fetch_articles(
 
     Async so the per-article Claude calls in ``process_articles_async`` can
     run concurrently on the existing event loop, rather than spinning up a
-    fresh one inside FastAPI's threadpool worker.
+    fresh one inside FastAPI's threadpool worker. The blocking, synchronous
+    calls (``fetch_news``'s RSS HTTP I/O and ``embed_articles``'s CPU-bound
+    embedding) are pushed off the loop with ``asyncio.to_thread`` so they
+    don't stall it.
     """
     try:
-        articles = fetch_news(
+        articles = await asyncio.to_thread(
+            fetch_news,
             source=body.source,
             max_per_source=body.max_per_source,
         )
@@ -58,7 +63,9 @@ async def fetch_articles(
         state.set_articles(articles)
 
         try:
-            embed_articles(articles, collection_name=state.collection_name)
+            await asyncio.to_thread(
+                embed_articles, articles, collection_name=state.collection_name
+            )
         except Exception:
             logger.warning(
                 "RAG embedding failed for session; semantic features will fall back",
