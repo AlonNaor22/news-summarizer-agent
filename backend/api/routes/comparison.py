@@ -50,15 +50,7 @@ async def get_same_story_groups(state: AppState = Depends(get_session_state)):
 
 @router.get("/comparison")
 def compare_all(state: AppState = Depends(get_session_state)):
-    """
-    Compare all stories that have multiple source coverage.
-
-    This performs a full analysis comparing how different news sources
-    cover the same events, identifying:
-    - Common facts
-    - Different emphases
-    - Potential bias
-    """
+    """Compare every multi-source story, surfacing common facts, differing emphases, and potential bias."""
     if len(state.articles) < 2:
         return {"comparisons": [], "total": 0}
 
@@ -75,11 +67,7 @@ async def compare_specific_articles(
     request: CompareRequest,
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Compare specific articles by their IDs.
-
-    Use this when you want to manually select which articles to compare.
-    """
+    """Compare a manually selected set of articles by their IDs."""
     articles_to_compare = []
     for aid in request.article_ids:
         if aid < 0 or aid >= len(state.articles):
@@ -99,11 +87,10 @@ async def compare_specific_articles(
 
 @router.get("/comparison/bias")
 def get_bias_analysis(state: AppState = Depends(get_session_state)):
-    """
-    Get bias analysis summary across all comparisons.
+    """Summarize bias findings across all multi-source comparisons.
 
-    Shows which sources have been flagged for potential bias
-    and their overall tone distribution.
+    Reports which sources were flagged for potential bias and their tone
+    distribution.
 
     Declared ``def`` (not ``async``) like its ``/comparison`` sibling: the
     work is entirely blocking (``compare_all_stories``), so FastAPI runs it

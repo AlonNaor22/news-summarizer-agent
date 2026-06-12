@@ -12,11 +12,7 @@ router = APIRouter()
 
 @router.get("/sentiment")
 async def get_sentiment_overview(state: AppState = Depends(get_session_state)):
-    """
-    Get sentiment analysis summary for all articles.
-
-    Returns counts and percentages for positive, negative, and neutral articles.
-    """
+    """Return the sentiment summary (counts + percentages) for all articles."""
     articles = state.articles
 
     if not articles:
@@ -38,11 +34,7 @@ async def get_articles_by_sentiment(
     limit: int = Query(50, description="Maximum articles to return"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Get articles filtered by sentiment type.
-
-    - **sentiment_type**: "positive", "negative", or "neutral"
-    """
+    """Return articles filtered by sentiment type (positive/negative/neutral)."""
     if sentiment_type.lower() not in ["positive", "negative", "neutral"]:
         return {
             "error": "Invalid sentiment type. Use: positive, negative, or neutral",

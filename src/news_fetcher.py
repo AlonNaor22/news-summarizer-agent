@@ -3,18 +3,6 @@
 import logging
 from typing import Optional
 
-
-class NewsAPIError(Exception):
-    """Raised when NewsAPI returns a non-ok response or a network error occurs."""
-
-
-class NewsAPIAuthError(NewsAPIError):
-    """Raised when NewsAPI returns HTTP 401 (invalid or missing API key)."""
-
-
-class NewsAPIRateLimitError(NewsAPIError):
-    """Raised when NewsAPI returns HTTP 429 (rate limit exceeded)."""
-
 import feedparser
 import requests
 from dateutil import parser as date_parser
@@ -28,6 +16,18 @@ from config import (
 from src.models import Article
 
 logger = logging.getLogger(__name__)
+
+
+class NewsAPIError(Exception):
+    """Raised when NewsAPI returns a non-ok response or a network error occurs."""
+
+
+class NewsAPIAuthError(NewsAPIError):
+    """Raised when NewsAPI returns HTTP 401 (invalid or missing API key)."""
+
+
+class NewsAPIRateLimitError(NewsAPIError):
+    """Raised when NewsAPI returns HTTP 429 (rate limit exceeded)."""
 
 
 def fetch_from_rss(feed_url: str, source_name: str, max_articles: int = 5) -> list[Article]:

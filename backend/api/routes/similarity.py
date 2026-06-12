@@ -21,13 +21,10 @@ async def get_similar_articles(
     use_llm: bool = Query(False, description="Use AI for relationship analysis"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Find articles similar to a specific article.
+    """Find articles similar to ``article_id`` by keyword/entity overlap.
 
-    - **article_id**: ID of the target article
-    - **threshold**: Minimum similarity score (0.0 to 1.0)
-    - **max_results**: Maximum number of similar articles
-    - **use_llm**: If true, uses AI for deeper relationship analysis
+    Filters to matches at or above ``threshold`` and returns up to
+    ``max_results``; set ``use_llm`` for deeper AI relationship analysis.
     """
     if article_id < 0 or article_id >= len(state.articles):
         raise HTTPException(status_code=404, detail="Article not found")
@@ -76,11 +73,7 @@ def get_all_relationships(
     use_llm: bool = Query(True, description="Use AI for relationship analysis"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Analyze relationships between all articles.
-
-    Returns both statistical (keyword-based) and AI-detected relationships.
-    """
+    """Analyze relationships between all articles (statistical + AI-detected)."""
     if not state.articles:
         return {
             "statistical_pairs": [],
@@ -105,9 +98,7 @@ async def get_related_pairs(
     limit: int = Query(20, description="Maximum pairs to return"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Get pairs of related articles based on keyword similarity.
-    """
+    """Return pairs of related articles ranked by keyword/entity similarity."""
     articles = state.articles
 
     if len(articles) < 2:
@@ -146,9 +137,7 @@ async def compare_two_articles(
     article_id_b: int,
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Compare two specific articles and get their similarity.
-    """
+    """Compare two specific articles and return their similarity breakdown."""
     if article_id_a < 0 or article_id_a >= len(state.articles):
         raise HTTPException(status_code=404, detail=f"Article {article_id_a} not found")
 

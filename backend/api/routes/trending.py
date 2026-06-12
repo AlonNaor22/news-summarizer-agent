@@ -15,14 +15,7 @@ def get_trending_topics(
     top_n: int = Query(10, description="Number of top keywords to return"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Get trending topics across all articles.
-
-    - **use_llm**: If true, uses AI to identify themes and patterns
-    - **top_n**: Number of top keywords to return
-
-    Returns keyword trends, entity trends, and AI-detected themes.
-    """
+    """Return trending topics across all articles: keyword trends, entity trends, and AI themes."""
     articles = state.articles
 
     if not articles:
@@ -48,12 +41,7 @@ async def get_trending_fast(
     top_n: int = Query(10, description="Number of top keywords to return"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Get trending keywords quickly (no AI analysis).
-
-    This is faster and doesn't use API calls, but only provides
-    keyword frequency analysis without intelligent theme detection.
-    """
+    """Return trending keywords/entities by frequency only — fast, no LLM calls."""
     articles = state.articles
 
     if not articles:
@@ -78,9 +66,7 @@ async def get_keywords(
     top_n: int = Query(20, description="Number of keywords to return"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Get trending keywords with article counts.
-    """
+    """Return trending keywords with their article counts."""
     articles = state.articles
 
     if not articles:
@@ -99,9 +85,7 @@ async def get_entities(
     top_n: int = Query(10, description="Number of entities per type"),
     state: AppState = Depends(get_session_state),
 ):
-    """
-    Get trending people, organizations, and locations.
-    """
+    """Return trending people, organizations, and locations."""
     articles = state.articles
 
     if not articles:

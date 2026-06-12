@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
-
 from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -119,9 +119,7 @@ async def ask_question_stream(
 
 @router.get("/qa/history")
 async def get_conversation_history(state: AppState = Depends(get_session_state)):
-    """
-    Get the current conversation history.
-    """
+    """Return the current conversation history as role/content pairs."""
     history = state.qa_chain.get_history()
 
     formatted_history = []
@@ -140,11 +138,7 @@ async def get_conversation_history(state: AppState = Depends(get_session_state))
 
 @router.delete("/qa/history")
 async def clear_conversation_history(state: AppState = Depends(get_session_state)):
-    """
-    Clear the conversation history.
-
-    Use this to start a fresh conversation about the same articles.
-    """
+    """Clear the conversation history (keeps the loaded articles)."""
     state.clear_qa_history()
 
     return {"message": "Conversation history cleared"}
@@ -152,9 +146,7 @@ async def clear_conversation_history(state: AppState = Depends(get_session_state
 
 @router.get("/qa/status")
 async def get_qa_status(state: AppState = Depends(get_session_state)):
-    """
-    Get the current status of the Q&A system.
-    """
+    """Return Q&A readiness: article count, history length, and ready flag."""
     return {
         "articles_loaded": len(state.articles),
         "history_length": len(state.qa_chain.get_history()),

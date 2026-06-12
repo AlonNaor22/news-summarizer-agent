@@ -8,8 +8,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
-
 from src.models import Article
 from src.news_fetcher import fetch_news
 from src.pipeline import process_articles_async
@@ -17,6 +15,8 @@ from src.rag import embed_articles, semantic_search
 
 from api.dependencies import AppState, get_session_state
 from api.limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
