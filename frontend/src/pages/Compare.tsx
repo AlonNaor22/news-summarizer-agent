@@ -155,11 +155,11 @@ function Compare() {
                     <p>{selectedComparison.story_summary}</p>
                   </section>
 
-                  {selectedComparison.common_facts?.length > 0 && (
+                  {(selectedComparison.common_facts?.length ?? 0) > 0 && (
                     <section className="comparison-section">
                       <h3>Common Facts (All Sources Agree)</h3>
                       <ul className="facts-list">
-                        {selectedComparison.common_facts.map((fact, i) => (
+                        {selectedComparison.common_facts?.map((fact, i) => (
                           <li key={i}>{fact}</li>
                         ))}
                       </ul>
@@ -170,7 +170,7 @@ function Compare() {
                     <section className="comparison-section">
                       <h3>Source-by-Source Analysis</h3>
                       <div className="source-analyses">
-                        {Object.entries(selectedComparison.source_analyses).map(([source, analysis]) => (
+                        {Object.entries(selectedComparison.source_analyses || {}).map(([source, analysis]) => (
                           <div key={source} className="source-analysis-card">
                             <div className="source-analysis-header">
                               <span className="source-name">{source}</span>
@@ -197,11 +197,11 @@ function Compare() {
                     </section>
                   )}
 
-                  {selectedComparison.key_differences?.length > 0 && (
+                  {(selectedComparison.key_differences?.length ?? 0) > 0 && (
                     <section className="comparison-section">
                       <h3>Key Differences</h3>
                       <ul className="differences-list">
-                        {selectedComparison.key_differences.map((diff, i) => (
+                        {selectedComparison.key_differences?.map((diff, i) => (
                           <li key={i}>{diff}</li>
                         ))}
                       </ul>

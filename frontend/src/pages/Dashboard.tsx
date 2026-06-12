@@ -114,7 +114,7 @@ function Dashboard() {
             {fetching ? 'Fetching & Processing...' : 'Fetch News'}
           </button>
 
-          {stats?.total > 0 && (
+          {(stats?.total ?? 0) > 0 && (
             <button
               className="btn btn-secondary"
               onClick={handleClearArticles}
@@ -156,7 +156,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {stats?.total > 0 && (
+      {(stats?.total ?? 0) > 0 && (
         <>
           <div className="dashboard-section">
             <div className="section-header">

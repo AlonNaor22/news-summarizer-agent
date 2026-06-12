@@ -33,7 +33,7 @@ function ArticleCard({ article }: Props) {
 
       <p className="article-summary">
         {summary?.slice(0, 200)}
-        {summary?.length > 200 && '...'}
+        {(summary?.length ?? 0) > 200 && '...'}
       </p>
 
       <div className="article-meta">

@@ -94,16 +94,16 @@ function ArticleDetail() {
           </section>
         )}
 
-        {(article.keywords?.length > 0 || article.people?.length > 0 ||
-          article.organizations?.length > 0 || article.locations?.length > 0) && (
+        {((article.keywords?.length ?? 0) > 0 || (article.people?.length ?? 0) > 0 ||
+          (article.organizations?.length ?? 0) > 0 || (article.locations?.length ?? 0) > 0) && (
           <section className="article-tags">
             <h2>Tags & Entities</h2>
 
-            {article.keywords?.length > 0 && (
+            {(article.keywords?.length ?? 0) > 0 && (
               <div className="tag-group">
                 <h3>Keywords</h3>
                 <div className="tags">
-                  {article.keywords.map((kw, i) => (
+                  {article.keywords?.map((kw, i) => (
                     <Link key={i} to={`/articles?keyword=${encodeURIComponent(kw)}`} className="tag keyword">
                       {kw}
                     </Link>
@@ -112,33 +112,33 @@ function ArticleDetail() {
               </div>
             )}
 
-            {article.people?.length > 0 && (
+            {(article.people?.length ?? 0) > 0 && (
               <div className="tag-group">
                 <h3>People</h3>
                 <div className="tags">
-                  {article.people.map((person, i) => (
+                  {article.people?.map((person, i) => (
                     <span key={i} className="tag person">{person}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {article.organizations?.length > 0 && (
+            {(article.organizations?.length ?? 0) > 0 && (
               <div className="tag-group">
                 <h3>Organizations</h3>
                 <div className="tags">
-                  {article.organizations.map((org, i) => (
+                  {article.organizations?.map((org, i) => (
                     <span key={i} className="tag organization">{org}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {article.locations?.length > 0 && (
+            {(article.locations?.length ?? 0) > 0 && (
               <div className="tag-group">
                 <h3>Locations</h3>
                 <div className="tags">
-                  {article.locations.map((loc, i) => (
+                  {article.locations?.map((loc, i) => (
                     <span key={i} className="tag location">{loc}</span>
                   ))}
                 </div>

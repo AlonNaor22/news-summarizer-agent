@@ -72,11 +72,11 @@ function Trending() {
         </div>
       )}
 
-      {useLlm && trends?.llm_trends?.length > 0 && (
+      {useLlm && (trends?.llm_trends?.length ?? 0) > 0 && (
         <section className="trend-section">
           <h2>AI-Detected Themes</h2>
           <div className="llm-trends">
-            {trends.llm_trends.map((trend, i) => (
+            {trends?.llm_trends?.map((trend, i) => (
               <div key={i} className={`llm-trend-card strength-${trend.strength}`}>
                 <div className="trend-header">
                   <h3>{trend.name}</h3>
@@ -87,9 +87,9 @@ function Trending() {
                 <p className="trend-description">{trend.description}</p>
                 <div className="trend-meta">
                   <span>{trend.article_count} articles</span>
-                  {trend.keywords?.length > 0 && (
+                  {(trend.keywords?.length ?? 0) > 0 && (
                     <span className="trend-keywords">
-                      Keywords: {trend.keywords.slice(0, 5).join(', ')}
+                      Keywords: {trend.keywords?.slice(0, 5).join(', ')}
                     </span>
                   )}
                 </div>
@@ -108,11 +108,11 @@ function Trending() {
       </section>
 
       <div className="entity-sections">
-        {trends?.entity_trends?.people?.length > 0 && (
+        {(trends?.entity_trends?.people?.length ?? 0) > 0 && (
           <section className="entity-section">
             <h2>Trending People</h2>
             <div className="entity-list">
-              {trends.entity_trends.people.map(([name, count], i) => (
+              {trends?.entity_trends?.people?.map(([name, count], i) => (
                 <div key={i} className="entity-item">
                   <span className="entity-icon">👤</span>
                   <span className="entity-name">{name}</span>
@@ -123,11 +123,11 @@ function Trending() {
           </section>
         )}
 
-        {trends?.entity_trends?.organizations?.length > 0 && (
+        {(trends?.entity_trends?.organizations?.length ?? 0) > 0 && (
           <section className="entity-section">
             <h2>Trending Organizations</h2>
             <div className="entity-list">
-              {trends.entity_trends.organizations.map(([name, count], i) => (
+              {trends?.entity_trends?.organizations?.map(([name, count], i) => (
                 <div key={i} className="entity-item">
                   <span className="entity-icon">🏢</span>
                   <span className="entity-name">{name}</span>
@@ -138,11 +138,11 @@ function Trending() {
           </section>
         )}
 
-        {trends?.entity_trends?.locations?.length > 0 && (
+        {(trends?.entity_trends?.locations?.length ?? 0) > 0 && (
           <section className="entity-section">
             <h2>Trending Locations</h2>
             <div className="entity-list">
-              {trends.entity_trends.locations.map(([name, count], i) => (
+              {trends?.entity_trends?.locations?.map(([name, count], i) => (
                 <div key={i} className="entity-item">
                   <span className="entity-icon">📍</span>
                   <span className="entity-name">{name}</span>

@@ -147,9 +147,9 @@ function Chat() {
         <div className="chat-header">
           <div className="chat-title">
             <h1>Chat with News</h1>
-            {status?.articles_loaded > 0 && (
+            {(status?.articles_loaded ?? 0) > 0 && (
               <span className="article-count">
-                {status.articles_loaded} articles loaded
+                {status?.articles_loaded} articles loaded
               </span>
             )}
           </div>
