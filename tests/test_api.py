@@ -258,7 +258,20 @@ def test_sentiment_returns_counts(seeded_state):
     resp = client.get("/api/sentiment")
     assert resp.status_code == 200
     data = resp.json()
-    assert "sentiment_counts" in data or "counts" in data or isinstance(data, dict)
+    # Assert required top-level keys
+    for key in ("positive", "negative", "neutral", "total", "breakdown"):
+        assert key in data, f"missing key: {key}"
+    # Seeded fixture has 1 positive + 1 negative article
+    assert data["positive"] == 1
+    assert data["negative"] == 1
+    assert data["neutral"] == 0
+    assert data["total"] == 2
+    # Counts must sum to total
+    assert data["positive"] + data["negative"] + data["neutral"] == data["total"]
+    # Breakdown holds per-sentiment percentages
+    assert isinstance(data["breakdown"], dict)
+    for key in ("positive", "negative", "neutral"):
+        assert key in data["breakdown"]
 
 
 # ---------------------------------------------------------------------------
