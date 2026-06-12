@@ -76,8 +76,8 @@ function Trending() {
         <section className="trend-section">
           <h2>AI-Detected Themes</h2>
           <div className="llm-trends">
-            {trends?.llm_trends?.map((trend, i) => (
-              <div key={i} className={`llm-trend-card strength-${trend.strength}`}>
+            {trends?.llm_trends?.map((trend) => (
+              <div key={trend.name} className={`llm-trend-card strength-${trend.strength}`}>
                 <div className="trend-header">
                   <h3>{trend.name}</h3>
                   <span className={`strength-badge ${trend.strength}`}>
@@ -112,8 +112,8 @@ function Trending() {
           <section className="entity-section">
             <h2>Trending People</h2>
             <div className="entity-list">
-              {trends?.entity_trends?.people?.map(([name, count], i) => (
-                <div key={i} className="entity-item">
+              {trends?.entity_trends?.people?.map(([name, count]) => (
+                <div key={name} className="entity-item">
                   <span className="entity-icon">👤</span>
                   <span className="entity-name">{name}</span>
                   <span className="entity-count">{count}</span>
@@ -127,8 +127,8 @@ function Trending() {
           <section className="entity-section">
             <h2>Trending Organizations</h2>
             <div className="entity-list">
-              {trends?.entity_trends?.organizations?.map(([name, count], i) => (
-                <div key={i} className="entity-item">
+              {trends?.entity_trends?.organizations?.map(([name, count]) => (
+                <div key={name} className="entity-item">
                   <span className="entity-icon">🏢</span>
                   <span className="entity-name">{name}</span>
                   <span className="entity-count">{count}</span>
@@ -142,8 +142,8 @@ function Trending() {
           <section className="entity-section">
             <h2>Trending Locations</h2>
             <div className="entity-list">
-              {trends?.entity_trends?.locations?.map(([name, count], i) => (
-                <div key={i} className="entity-item">
+              {trends?.entity_trends?.locations?.map(([name, count]) => (
+                <div key={name} className="entity-item">
                   <span className="entity-icon">📍</span>
                   <span className="entity-name">{name}</span>
                   <span className="entity-count">{count}</span>

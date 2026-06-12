@@ -15,12 +15,12 @@ function TrendingKeywords({ keywords, onKeywordClick }: Props) {
 
   return (
     <div className="trending-keywords">
-      {keywords.map((item, index) => {
+      {keywords.map((item) => {
         const size = Math.max(0.75, (item.count / maxCount) * 1.25);
 
         return (
           <button
-            key={index}
+            key={item.keyword}
             className="keyword-pill"
             style={{ fontSize: `${size}rem` }}
             onClick={() => onKeywordClick?.(item.keyword)}

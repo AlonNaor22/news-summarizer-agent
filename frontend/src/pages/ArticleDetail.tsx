@@ -103,8 +103,8 @@ function ArticleDetail() {
               <div className="tag-group">
                 <h3>Keywords</h3>
                 <div className="tags">
-                  {article.keywords?.map((kw, i) => (
-                    <Link key={i} to={`/articles?keyword=${encodeURIComponent(kw)}`} className="tag keyword">
+                  {article.keywords?.map((kw) => (
+                    <Link key={kw} to={`/articles?keyword=${encodeURIComponent(kw)}`} className="tag keyword">
                       {kw}
                     </Link>
                   ))}
@@ -116,8 +116,8 @@ function ArticleDetail() {
               <div className="tag-group">
                 <h3>People</h3>
                 <div className="tags">
-                  {article.people?.map((person, i) => (
-                    <span key={i} className="tag person">{person}</span>
+                  {article.people?.map((person) => (
+                    <span key={person} className="tag person">{person}</span>
                   ))}
                 </div>
               </div>
@@ -127,8 +127,8 @@ function ArticleDetail() {
               <div className="tag-group">
                 <h3>Organizations</h3>
                 <div className="tags">
-                  {article.organizations?.map((org, i) => (
-                    <span key={i} className="tag organization">{org}</span>
+                  {article.organizations?.map((org) => (
+                    <span key={org} className="tag organization">{org}</span>
                   ))}
                 </div>
               </div>
@@ -138,8 +138,8 @@ function ArticleDetail() {
               <div className="tag-group">
                 <h3>Locations</h3>
                 <div className="tags">
-                  {article.locations?.map((loc, i) => (
-                    <span key={i} className="tag location">{loc}</span>
+                  {article.locations?.map((loc) => (
+                    <span key={loc} className="tag location">{loc}</span>
                   ))}
                 </div>
               </div>

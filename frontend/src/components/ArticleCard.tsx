@@ -41,8 +41,8 @@ function ArticleCard({ article }: Props) {
 
         {keywords.length > 0 && (
           <div className="article-keywords">
-            {keywords.slice(0, 3).map((kw, i) => (
-              <span key={i} className="keyword-tag">{kw}</span>
+            {keywords.slice(0, 3).map((kw) => (
+              <span key={kw} className="keyword-tag">{kw}</span>
             ))}
           </div>
         )}

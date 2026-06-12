@@ -83,8 +83,8 @@ function Compare() {
         <aside className="sources-sidebar">
           <h2>News Sources</h2>
           <div className="sources-list">
-            {sources.map((source, i) => (
-              <div key={i} className="source-item">
+            {sources.map((source) => (
+              <div key={source.name} className="source-item">
                 <span className="source-name">{source.name}</span>
                 <span className="source-count">{source.article_count} articles</span>
               </div>
@@ -98,8 +98,8 @@ function Compare() {
                 {stories.length} stories covered by multiple sources
               </p>
               <div className="stories-list">
-                {stories.map((story, i) => (
-                  <div key={i} className="story-item">
+                {stories.map((story) => (
+                  <div key={story.story_title} className="story-item">
                     <div className="story-title">{story.story_title.slice(0, 60)}...</div>
                     <div className="story-sources">{story.sources.join(', ')}</div>
                   </div>
@@ -130,9 +130,9 @@ function Compare() {
           ) : (
             <>
               <div className="comparison-tabs">
-                {comparisons.map((comp, i) => (
+                {comparisons.map((comp) => (
                   <button
-                    key={i}
+                    key={comp.story_title}
                     className={`comparison-tab ${selectedComparison === comp ? 'active' : ''}`}
                     onClick={() => setSelectedComparison(comp)}
                   >

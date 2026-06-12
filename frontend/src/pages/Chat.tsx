@@ -178,9 +178,9 @@ function Chat() {
                   <div className="suggestions">
                     <p className="suggestions-label">Try asking:</p>
                     <div className="suggestion-buttons">
-                      {suggestedQuestions.map((q, i) => (
+                      {suggestedQuestions.map((q) => (
                         <button
-                          key={i}
+                          key={q}
                           className="suggestion-btn"
                           onClick={() => handleSuggestion(q)}
                         >
