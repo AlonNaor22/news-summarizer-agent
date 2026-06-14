@@ -31,7 +31,7 @@ function Articles() {
 
       const [articlesRes, statsRes] = await Promise.all([
         articlesApi.getAll(params),
-        articlesApi.getStats()
+        articlesApi.getStats(),
       ]);
 
       setArticles(articlesRes.data.articles);
@@ -46,6 +46,9 @@ function Articles() {
 
   useEffect(() => {
     loadArticles();
+    // loadArticles only reads the filter values below, so re-running when any
+    // of them changes is exactly the intended dependency set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, sentiment, source, keyword]);
 
   const handleSearch = (query: string) => {
@@ -85,9 +88,12 @@ function Articles() {
             aria-label={strings.articles.filterByCategory}
           >
             <option value="">{strings.articles.allCategories}</option>
-            {stats?.by_category && Object.keys(stats.by_category).map(cat => (
-              <option key={cat} value={cat}>{cat} ({stats.by_category[cat]})</option>
-            ))}
+            {stats?.by_category &&
+              Object.keys(stats.by_category).map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat} ({stats.by_category[cat]})
+                </option>
+              ))}
           </select>
 
           <select
@@ -96,9 +102,15 @@ function Articles() {
             aria-label={strings.articles.filterBySentiment}
           >
             <option value="">{strings.articles.allSentiments}</option>
-            <option value="positive">{strings.articles.positive} ({stats?.by_sentiment?.positive || 0})</option>
-            <option value="negative">{strings.articles.negative} ({stats?.by_sentiment?.negative || 0})</option>
-            <option value="neutral">{strings.articles.neutral} ({stats?.by_sentiment?.neutral || 0})</option>
+            <option value="positive">
+              {strings.articles.positive} ({stats?.by_sentiment?.positive || 0})
+            </option>
+            <option value="negative">
+              {strings.articles.negative} ({stats?.by_sentiment?.negative || 0})
+            </option>
+            <option value="neutral">
+              {strings.articles.neutral} ({stats?.by_sentiment?.neutral || 0})
+            </option>
           </select>
 
           <select
@@ -107,9 +119,12 @@ function Articles() {
             aria-label={strings.articles.filterBySource}
           >
             <option value="">{strings.articles.allSources}</option>
-            {stats?.by_source && Object.keys(stats.by_source).map(src => (
-              <option key={src} value={src}>{src} ({stats.by_source[src]})</option>
-            ))}
+            {stats?.by_source &&
+              Object.keys(stats.by_source).map((src) => (
+                <option key={src} value={src}>
+                  {src} ({stats.by_source[src]})
+                </option>
+              ))}
           </select>
 
           {hasFilters && (

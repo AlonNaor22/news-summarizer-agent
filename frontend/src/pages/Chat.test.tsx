@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, test, expect, beforeAll, beforeEach } from 'vitest';
+import type { AxiosResponse } from 'axios';
 
 // Chat depends on the API client; replace it with controllable mocks.
 vi.mock('../services/api', () => ({
@@ -18,6 +19,11 @@ import { qaApi } from '../services/api';
 import Chat from './Chat';
 import { strings } from '../strings';
 
+// qaApi methods resolve an Axios response; tests only assert on `data`.
+function res<T>(data: T): AxiosResponse<T> {
+  return { data } as AxiosResponse<T>;
+}
+
 beforeAll(() => {
   // jsdom doesn't implement scrollIntoView; Chat calls it on every message change.
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -25,12 +31,10 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  (qaApi.getStatus as any).mockResolvedValue({
-    data: { articles_loaded: 2, history_length: 0, ready: true },
-  });
-  (qaApi.getHistory as any).mockResolvedValue({
-    data: { history: [], message_count: 0 },
-  });
+  vi.mocked(qaApi.getStatus).mockResolvedValue(
+    res({ articles_loaded: 2, history_length: 0, ready: true }),
+  );
+  vi.mocked(qaApi.getHistory).mockResolvedValue(res({ history: [], message_count: 0 }));
 });
 
 function renderChat() {
@@ -44,14 +48,12 @@ function renderChat() {
 describe('Chat', () => {
   test('falls back to the non-streaming answer when the stream fails before any chunk', async () => {
     // Stream reports an error and never delivers a chunk.
-    (qaApi.askStream as any).mockImplementation(
-      async (_question: string, callbacks: { onError?: (d: string) => void }) => {
-        callbacks.onError?.('stream down');
-      },
-    );
-    (qaApi.ask as any).mockResolvedValue({
-      data: { answer: 'Fallback answer' },
+    vi.mocked(qaApi.askStream).mockImplementation(async (_question, callbacks) => {
+      callbacks.onError?.('stream down');
     });
+    vi.mocked(qaApi.ask).mockResolvedValue(
+      res({ question: 'What happened?', answer: 'Fallback answer', article_count: 0 }),
+    );
 
     renderChat();
 
@@ -66,13 +68,11 @@ describe('Chat', () => {
   });
 
   test('renders streamed chunks directly without invoking the fallback', async () => {
-    (qaApi.askStream as any).mockImplementation(
-      async (_question: string, callbacks: { onChunk: (t: string) => void; onDone?: (i: unknown) => void }) => {
-        callbacks.onChunk('Streamed ');
-        callbacks.onChunk('answer');
-        callbacks.onDone?.({ article_count: 2 });
-      },
-    );
+    vi.mocked(qaApi.askStream).mockImplementation(async (_question, callbacks) => {
+      callbacks.onChunk('Streamed ');
+      callbacks.onChunk('answer');
+      callbacks.onDone?.({ article_count: 2 });
+    });
 
     renderChat();
 
