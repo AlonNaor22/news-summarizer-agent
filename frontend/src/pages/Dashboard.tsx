@@ -24,7 +24,7 @@ function Dashboard() {
       const [statsRes, sentimentRes, keywordsRes] = await Promise.all([
         articlesApi.getStats(),
         sentimentApi.getOverview(),
-        trendingApi.getTrendingFast(10)
+        trendingApi.getTrendingFast(10),
       ]);
 
       setStats(statsRes.data);
@@ -109,20 +109,12 @@ function Dashboard() {
             </select>
           </div>
 
-          <button
-            className="btn btn-primary"
-            onClick={handleFetchNews}
-            disabled={fetching}
-          >
+          <button className="btn btn-primary" onClick={handleFetchNews} disabled={fetching}>
             {fetching ? strings.dashboard.fetchingButton : strings.dashboard.fetchButton}
           </button>
 
           {(stats?.total ?? 0) > 0 && (
-            <button
-              className="btn btn-secondary"
-              onClick={handleClearArticles}
-              disabled={fetching}
-            >
+            <button className="btn btn-secondary" onClick={handleClearArticles} disabled={fetching}>
               {strings.common.clearAll}
             </button>
           )}
@@ -166,25 +158,28 @@ function Dashboard() {
               <h2>{strings.dashboard.sentimentDistribution}</h2>
             </div>
             <div className="sentiment-bars">
-              {sentiment?.breakdown && Object.entries(sentiment.breakdown).map(([type, percentage]) => (
-                <div key={type} className="sentiment-bar-group">
-                  <div className="sentiment-bar-label">{type}</div>
-                  <div className="sentiment-bar-track">
-                    <div
-                      className={`sentiment-bar-fill ${type}`}
-                      style={{ width: `${percentage}%` }}
-                    />
+              {sentiment?.breakdown &&
+                Object.entries(sentiment.breakdown).map(([type, percentage]) => (
+                  <div key={type} className="sentiment-bar-group">
+                    <div className="sentiment-bar-label">{type}</div>
+                    <div className="sentiment-bar-track">
+                      <div
+                        className={`sentiment-bar-fill ${type}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <div className="sentiment-bar-value">{percentage}%</div>
                   </div>
-                  <div className="sentiment-bar-value">{percentage}%</div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 
           <div className="dashboard-section">
             <div className="section-header">
               <h2>{strings.dashboard.trendingKeywords}</h2>
-              <Link to="/trending" className="section-link">{strings.common.viewAll}</Link>
+              <Link to="/trending" className="section-link">
+                {strings.common.viewAll}
+              </Link>
             </div>
             <TrendingKeywords keywords={keywords} />
           </div>
@@ -192,19 +187,22 @@ function Dashboard() {
           <div className="dashboard-section">
             <div className="section-header">
               <h2>{strings.dashboard.articlesByCategory}</h2>
-              <Link to="/articles" className="section-link">{strings.common.viewAll}</Link>
+              <Link to="/articles" className="section-link">
+                {strings.common.viewAll}
+              </Link>
             </div>
             <div className="category-list">
-              {stats?.by_category && Object.entries(stats.by_category).map(([category, count]) => (
-                <Link
-                  key={category}
-                  to={`/articles?category=${encodeURIComponent(category)}`}
-                  className="category-item"
-                >
-                  <span className="category-name">{category}</span>
-                  <span className="category-count">{count}</span>
-                </Link>
-              ))}
+              {stats?.by_category &&
+                Object.entries(stats.by_category).map(([category, count]) => (
+                  <Link
+                    key={category}
+                    to={`/articles?category=${encodeURIComponent(category)}`}
+                    className="category-item"
+                  >
+                    <span className="category-name">{category}</span>
+                    <span className="category-count">{count}</span>
+                  </Link>
+                ))}
             </div>
           </div>
         </>

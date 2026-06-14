@@ -22,7 +22,7 @@ function ArticleDetail() {
       try {
         const [articleRes, similarRes] = await Promise.all([
           articlesApi.getById(id),
-          similarityApi.getSimilar(id, 0.2, 5)
+          similarityApi.getSimilar(id, 0.2, 5),
         ]);
 
         setArticle(articleRes.data);
@@ -48,7 +48,9 @@ function ArticleDetail() {
         <div className="error-state">
           <h2>{strings.articleDetail.notFoundTitle}</h2>
           <p>{error || strings.articleDetail.notFoundBody}</p>
-          <Link to="/articles" className="btn btn-primary">{strings.common.backToArticles}</Link>
+          <Link to="/articles" className="btn btn-primary">
+            {strings.common.backToArticles}
+          </Link>
         </div>
       </div>
     );
@@ -70,9 +72,7 @@ function ArticleDetail() {
           <h1>{article.title}</h1>
 
           <div className="article-meta-bottom">
-            {article.published && (
-              <span className="article-date">{article.published}</span>
-            )}
+            {article.published && <span className="article-date">{article.published}</span>}
             <SentimentBadge sentiment={article.sentiment} />
           </div>
         </header>
@@ -95,8 +95,10 @@ function ArticleDetail() {
           </section>
         )}
 
-        {((article.keywords?.length ?? 0) > 0 || (article.people?.length ?? 0) > 0 ||
-          (article.organizations?.length ?? 0) > 0 || (article.locations?.length ?? 0) > 0) && (
+        {((article.keywords?.length ?? 0) > 0 ||
+          (article.people?.length ?? 0) > 0 ||
+          (article.organizations?.length ?? 0) > 0 ||
+          (article.locations?.length ?? 0) > 0) && (
           <section className="article-tags">
             <h2>{strings.articleDetail.tagsAndEntities}</h2>
 
@@ -105,7 +107,11 @@ function ArticleDetail() {
                 <h3>{strings.articleDetail.keywords}</h3>
                 <div className="tags">
                   {article.keywords?.map((kw) => (
-                    <Link key={kw} to={`/articles?keyword=${encodeURIComponent(kw)}`} className="tag keyword">
+                    <Link
+                      key={kw}
+                      to={`/articles?keyword=${encodeURIComponent(kw)}`}
+                      className="tag keyword"
+                    >
                       {kw}
                     </Link>
                   ))}
@@ -118,7 +124,9 @@ function ArticleDetail() {
                 <h3>{strings.articleDetail.people}</h3>
                 <div className="tags">
                   {article.people?.map((person) => (
-                    <span key={person} className="tag person">{person}</span>
+                    <span key={person} className="tag person">
+                      {person}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -129,7 +137,9 @@ function ArticleDetail() {
                 <h3>{strings.articleDetail.organizations}</h3>
                 <div className="tags">
                   {article.organizations?.map((org) => (
-                    <span key={org} className="tag organization">{org}</span>
+                    <span key={org} className="tag organization">
+                      {org}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -140,7 +150,9 @@ function ArticleDetail() {
                 <h3>{strings.articleDetail.locations}</h3>
                 <div className="tags">
                   {article.locations?.map((loc) => (
-                    <span key={loc} className="tag location">{loc}</span>
+                    <span key={loc} className="tag location">
+                      {loc}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -150,7 +162,12 @@ function ArticleDetail() {
 
         {article.url && (
           <section className="article-original">
-            <a href={article.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+            >
               {strings.articleDetail.readOriginal}
             </a>
           </section>
@@ -167,7 +184,9 @@ function ArticleDetail() {
                 <div className="similar-meta">
                   <span className="similar-source">{item.source}</span>
                   <span className="similar-score">
-                    {strings.articleDetail.percentSimilar(Math.round((item.similarity?.overall || 0) * 100))}
+                    {strings.articleDetail.percentSimilar(
+                      Math.round((item.similarity?.overall || 0) * 100),
+                    )}
                   </span>
                 </div>
               </Link>

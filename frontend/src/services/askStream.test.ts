@@ -29,7 +29,10 @@ function streamingResponse(chunks: string[]) {
 }
 
 function stubFetch(response: unknown) {
-  vi.stubGlobal('fetch', vi.fn(async () => response));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => response),
+  );
 }
 
 describe('qaApi.askStream', () => {

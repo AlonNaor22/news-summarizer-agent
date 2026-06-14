@@ -12,7 +12,7 @@ function TrendingKeywords({ keywords, onKeywordClick }: Props) {
     return <p className="no-keywords">{strings.trending.noKeywords}</p>;
   }
 
-  const maxCount = Math.max(...keywords.map(k => k.count));
+  const maxCount = Math.max(...keywords.map((k) => k.count));
 
   return (
     <div className="trending-keywords">

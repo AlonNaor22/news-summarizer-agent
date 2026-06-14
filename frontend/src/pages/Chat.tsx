@@ -45,7 +45,7 @@ function Chat() {
   };
 
   const appendToLastAssistant = (chunk: string) => {
-    setMessages(prev => {
+    setMessages((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
       if (last.role !== 'assistant') return prev;
@@ -56,7 +56,7 @@ function Chat() {
   };
 
   const replaceLastAssistant = (content: string) => {
-    setMessages(prev => {
+    setMessages((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
       if (last.role !== 'assistant') return prev;
@@ -78,7 +78,7 @@ function Chat() {
     const question = input.trim();
     setInput('');
 
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
       { role: 'user', content: question },
       { role: 'assistant', content: '' },
@@ -107,9 +107,7 @@ function Chat() {
         const answer = await askNonStreaming(question);
         replaceLastAssistant(answer);
       } catch (fallbackErr) {
-        const detail = axios.isAxiosError(fallbackErr)
-          ? fallbackErr.response?.data?.detail
-          : null;
+        const detail = axios.isAxiosError(fallbackErr) ? fallbackErr.response?.data?.detail : null;
         const errorMessage = detail || streamErrorDetail || strings.chat.genericError;
         replaceLastAssistant(strings.chat.errorPrefix(errorMessage));
       }
@@ -160,7 +158,9 @@ function Chat() {
             <div className="empty-icon">💬</div>
             <h2>{strings.chat.noArticlesTitle}</h2>
             <p>{strings.chat.noArticlesBody}</p>
-            <Link to="/" className="btn btn-primary">{strings.common.goToDashboard}</Link>
+            <Link to="/" className="btn btn-primary">
+              {strings.common.goToDashboard}
+            </Link>
           </div>
         ) : (
           <>
@@ -193,9 +193,7 @@ function Chat() {
                   loading && isLast && msg.role === 'assistant' && msg.content === '';
                 return (
                   <div key={i} className={`message ${msg.role}`}>
-                    <div className="message-avatar">
-                      {msg.role === 'user' ? '👤' : '🤖'}
-                    </div>
+                    <div className="message-avatar">{msg.role === 'user' ? '👤' : '🤖'}</div>
                     {isStreamingPlaceholder ? (
                       <div className="message-content typing">
                         <span></span>
@@ -222,11 +220,7 @@ function Chat() {
                 disabled={loading}
                 className="chat-input"
               />
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="send-button"
-              >
+              <button type="submit" disabled={loading || !input.trim()} className="send-button">
                 {loading ? strings.chat.sending : strings.chat.send}
               </button>
             </form>

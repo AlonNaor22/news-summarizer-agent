@@ -11,37 +11,34 @@ function Navbar() {
         </NavLink>
 
         <div className="navbar-links">
-          <NavLink
-            to="/"
-            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-          >
+          <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             {strings.nav.dashboard}
           </NavLink>
 
           <NavLink
             to="/articles"
-            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
             {strings.nav.articles}
           </NavLink>
 
           <NavLink
             to="/trending"
-            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
             {strings.nav.trending}
           </NavLink>
 
           <NavLink
             to="/compare"
-            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
             {strings.nav.compare}
           </NavLink>
 
           <NavLink
             to="/chat"
-            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
             {strings.nav.chat}
           </NavLink>

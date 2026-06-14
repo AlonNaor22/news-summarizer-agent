@@ -57,11 +57,7 @@ function Trending() {
         </div>
 
         {!useLlm && (
-          <button
-            className="btn btn-ai"
-            onClick={handleAnalyzeWithAI}
-            disabled={analyzing}
-          >
+          <button className="btn btn-ai" onClick={handleAnalyzeWithAI} disabled={analyzing}>
             {analyzing ? strings.trending.analyzing : strings.trending.analyzeWithAi}
           </button>
         )}
@@ -81,9 +77,7 @@ function Trending() {
               <div key={trend.name} className={`llm-trend-card strength-${trend.strength}`}>
                 <div className="trend-header">
                   <h3>{trend.name}</h3>
-                  <span className={`strength-badge ${trend.strength}`}>
-                    {trend.strength}
-                  </span>
+                  <span className={`strength-badge ${trend.strength}`}>{trend.strength}</span>
                 </div>
                 <p className="trend-description">{trend.description}</p>
                 <div className="trend-meta">
@@ -158,7 +152,9 @@ function Trending() {
       {(!trends?.keyword_trends || trends.keyword_trends.length === 0) && (
         <div className="empty-state">
           <p>{strings.trending.none}</p>
-          <Link to="/" className="btn btn-primary">{strings.trending.fetchFirst}</Link>
+          <Link to="/" className="btn btn-primary">
+            {strings.trending.fetchFirst}
+          </Link>
         </div>
       )}
     </div>

@@ -21,7 +21,7 @@ function Compare() {
       try {
         const [storiesRes, sourcesRes] = await Promise.all([
           comparisonApi.getStories(),
-          comparisonApi.getSources()
+          comparisonApi.getSources(),
         ]);
 
         setStories(storiesRes.data.stories || []);
@@ -64,11 +64,7 @@ function Compare() {
         </div>
 
         {stories.length > 0 && comparisons.length === 0 && (
-          <button
-            className="btn btn-ai"
-            onClick={handleCompareAll}
-            disabled={comparing}
-          >
+          <button className="btn btn-ai" onClick={handleCompareAll} disabled={comparing}>
             {comparing ? strings.compare.comparing : strings.compare.compareButton}
           </button>
         )}
@@ -87,7 +83,9 @@ function Compare() {
             {sources.map((source) => (
               <div key={source.name} className="source-item">
                 <span className="source-name">{source.name}</span>
-                <span className="source-count">{strings.compare.articlesCount(source.article_count)}</span>
+                <span className="source-count">
+                  {strings.compare.articlesCount(source.article_count)}
+                </span>
               </div>
             ))}
           </div>
@@ -95,9 +93,7 @@ function Compare() {
           {stories.length > 0 && (
             <>
               <h2>{strings.compare.multiSourceStories}</h2>
-              <p className="sidebar-note">
-                {strings.compare.storiesCovered(stories.length)}
-              </p>
+              <p className="sidebar-note">{strings.compare.storiesCovered(stories.length)}</p>
               <div className="stories-list">
                 {stories.map((story) => (
                   <div key={story.story_title} className="story-item">
@@ -124,7 +120,9 @@ function Compare() {
                   <h2>{strings.compare.noStoriesTitle}</h2>
                   <p>{strings.compare.noStoriesBody}</p>
                   <p>{strings.compare.noStoriesHint}</p>
-                  <Link to="/" className="btn btn-primary">{strings.common.goToDashboard}</Link>
+                  <Link to="/" className="btn btn-primary">
+                    {strings.common.goToDashboard}
+                  </Link>
                 </>
               )}
             </div>
@@ -171,29 +169,36 @@ function Compare() {
                     <section className="comparison-section">
                       <h3>{strings.compare.sourceBySource}</h3>
                       <div className="source-analyses">
-                        {Object.entries(selectedComparison.source_analyses || {}).map(([source, analysis]) => (
-                          <div key={source} className="source-analysis-card">
-                            <div className="source-analysis-header">
-                              <span className="source-name">{source}</span>
-                              <SentimentBadge sentiment={analysis.tone} />
-                            </div>
-                            <div className="source-analysis-body">
-                              <div className="analysis-item">
-                                <strong>{strings.compare.focusLabel}</strong> {analysis.emphasis}
+                        {Object.entries(selectedComparison.source_analyses || {}).map(
+                          ([source, analysis]) => (
+                            <div key={source} className="source-analysis-card">
+                              <div className="source-analysis-header">
+                                <span className="source-name">{source}</span>
+                                <SentimentBadge sentiment={analysis.tone} />
                               </div>
-                              {analysis.unique_details && analysis.unique_details.toLowerCase() !== 'none' && (
+                              <div className="source-analysis-body">
                                 <div className="analysis-item">
-                                  <strong>{strings.compare.uniqueDetailsLabel}</strong> {analysis.unique_details}
+                                  <strong>{strings.compare.focusLabel}</strong> {analysis.emphasis}
                                 </div>
-                              )}
-                              {analysis.potential_bias && analysis.potential_bias.toLowerCase() !== 'none' && analysis.potential_bias.toLowerCase() !== 'none detected' && (
-                                <div className="analysis-item bias">
-                                  <strong>{strings.compare.potentialBiasLabel}</strong> {analysis.potential_bias}
-                                </div>
-                              )}
+                                {analysis.unique_details &&
+                                  analysis.unique_details.toLowerCase() !== 'none' && (
+                                    <div className="analysis-item">
+                                      <strong>{strings.compare.uniqueDetailsLabel}</strong>{' '}
+                                      {analysis.unique_details}
+                                    </div>
+                                  )}
+                                {analysis.potential_bias &&
+                                  analysis.potential_bias.toLowerCase() !== 'none' &&
+                                  analysis.potential_bias.toLowerCase() !== 'none detected' && (
+                                    <div className="analysis-item bias">
+                                      <strong>{strings.compare.potentialBiasLabel}</strong>{' '}
+                                      {analysis.potential_bias}
+                                    </div>
+                                  )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ),
+                        )}
                       </div>
                     </section>
                   )}

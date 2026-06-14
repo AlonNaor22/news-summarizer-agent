@@ -126,9 +126,11 @@ export const strings = {
     articlesCount: (count: number) => `${count} articles`,
     readyTitle: 'Ready to Compare',
     readyBody: (count: number) => `Found ${count} stories covered by multiple sources.`,
-    readyHint: 'Click "Compare Sources with AI" to analyze how different outlets cover the same events.',
+    readyHint:
+      'Click "Compare Sources with AI" to analyze how different outlets cover the same events.',
     noStoriesTitle: 'No Multi-Source Stories Found',
-    noStoriesBody: 'To compare sources, you need stories that are covered by multiple news outlets.',
+    noStoriesBody:
+      'To compare sources, you need stories that are covered by multiple news outlets.',
     noStoriesHint: 'Try fetching more articles from different sources.',
     loading: 'Loading comparison data...',
     sourcesLabel: 'Sources:',
