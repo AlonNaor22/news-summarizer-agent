@@ -83,9 +83,14 @@ def get_all_relationships(
             "total_articles": 0
         }
 
-    analysis = analyze_article_relationships(state.articles, use_llm=use_llm)
-
-    state.relationships = analysis
+    # Cache per session, keyed by use_llm: analyze_article_relationships fires
+    # Claude calls, so repeat requests over the same article set reuse the result.
+    cache = state.relationships_cache
+    if cache is not None and cache["use_llm"] == use_llm:
+        analysis = cache["data"]
+    else:
+        analysis = analyze_article_relationships(state.articles, use_llm=use_llm)
+        state.relationships_cache = {"use_llm": use_llm, "data": analysis}
 
     return {
         **analysis,

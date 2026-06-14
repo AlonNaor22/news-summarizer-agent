@@ -26,9 +26,14 @@ def get_trending_topics(
             "total_articles": 0
         }
 
-    trends = detect_trends(articles, use_llm=use_llm)
-
-    state.trends = trends
+    # Cache per session, keyed by use_llm: detect_trends fires Claude calls, so
+    # repeat requests over the same article set reuse the prior result.
+    cache = state.trends_cache
+    if cache is not None and cache["use_llm"] == use_llm:
+        trends = cache["data"]
+    else:
+        trends = detect_trends(articles, use_llm=use_llm)
+        state.trends_cache = {"use_llm": use_llm, "data": trends}
 
     return {
         **trends,

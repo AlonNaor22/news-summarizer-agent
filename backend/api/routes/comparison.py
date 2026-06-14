@@ -22,6 +22,19 @@ class CompareRequest(BaseModel):
     article_ids: List[int]
 
 
+def _get_comparisons(state: AppState) -> list:
+    """Return this session's multi-source comparisons, computing once and caching.
+
+    ``compare_all_stories`` fires Claude calls, and both ``/comparison`` and
+    ``/comparison/bias`` depend on it, so the result is cached on the session
+    (and invalidated whenever the article set changes). ``None`` means not yet
+    computed; an empty list is a valid cached result and is not recomputed.
+    """
+    if state.comparisons_cache is None:
+        state.comparisons_cache = compare_all_stories(state.articles)
+    return state.comparisons_cache
+
+
 @router.get("/comparison/stories")
 async def get_same_story_groups(state: AppState = Depends(get_session_state)):
     """Find groups of articles that cover the same story across different sources."""
@@ -55,7 +68,7 @@ def compare_all(state: AppState = Depends(get_session_state)):
     if len(state.articles) < 2:
         return {"comparisons": [], "total": 0}
 
-    comparisons = compare_all_stories(state.articles)
+    comparisons = _get_comparisons(state)
 
     return {
         "comparisons": comparisons,
@@ -104,7 +117,7 @@ def get_bias_analysis(state: AppState = Depends(get_session_state)):
             "tone_distribution": {}
         }
 
-    comparisons = compare_all_stories(state.articles)
+    comparisons = _get_comparisons(state)
 
     if not comparisons:
         return {

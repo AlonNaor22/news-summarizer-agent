@@ -24,6 +24,19 @@ from src.models import Article
 import sys as _sys
 deps = _sys.modules.get("api.dependencies") or _sys.modules["backend.api.dependencies"]
 
+# Same trick for the route modules — the caching tests patch the expensive
+# analysis functions where each route imported them, so it's the cache (not a
+# recompute) that gets exercised on the second request.
+trending_routes = (
+    _sys.modules.get("api.routes.trending") or _sys.modules["backend.api.routes.trending"]
+)
+similarity_routes = (
+    _sys.modules.get("api.routes.similarity") or _sys.modules["backend.api.routes.similarity"]
+)
+comparison_routes = (
+    _sys.modules.get("api.routes.comparison") or _sys.modules["backend.api.routes.comparison"]
+)
+
 # Fixed UUID for all tests in this module — every request the client makes
 # carries this header, so requests share one AppState (matching the singleton
 # semantics the suite was originally written against).
@@ -338,3 +351,143 @@ def test_clear_articles_removes_persisted_rows(seeded_state):
     resp = client.delete("/api/articles")
     assert resp.status_code == 200
     assert load_articles(TEST_SESSION_ID) == []
+
+
+# ---------------------------------------------------------------------------
+# Per-session caching of the expensive LLM analyses
+# ---------------------------------------------------------------------------
+
+# Canned analysis payloads, shaped like what the real (LLM-backed) functions
+# return, so the response-equality assertions below stay meaningful.
+_SAMPLE_TRENDS = {
+    "keyword_trends": [{"keyword": "ai", "count": 1, "percentage": 50.0}],
+    "entity_trends": {"people": [], "organizations": [], "locations": []},
+    "llm_trends": [],
+}
+
+_SAMPLE_RELATIONSHIPS = {
+    "statistical_pairs": [],
+    "llm_pairs": [],
+    "article_connections": {},
+}
+
+
+def test_trending_second_call_uses_cache(seeded_state, monkeypatch):
+    """A repeat /trending request reuses the cached analysis instead of recomputing."""
+    calls = []
+
+    def fake_detect_trends(articles, use_llm=True):
+        calls.append(use_llm)
+        return _SAMPLE_TRENDS
+
+    monkeypatch.setattr(trending_routes, "detect_trends", fake_detect_trends)
+
+    first = client.get("/api/trending")
+    second = client.get("/api/trending")
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    assert first.json()["total_articles"] == 2
+    assert len(calls) == 1  # second response served from cache
+
+
+def test_trending_cache_keyed_by_use_llm(seeded_state, monkeypatch):
+    """Changing use_llm recomputes; the cache holds a single (flag, data) pair."""
+    calls = []
+
+    def fake_detect_trends(articles, use_llm=True):
+        calls.append(use_llm)
+        return _SAMPLE_TRENDS
+
+    monkeypatch.setattr(trending_routes, "detect_trends", fake_detect_trends)
+
+    client.get("/api/trending?use_llm=true")
+    client.get("/api/trending?use_llm=false")
+    client.get("/api/trending?use_llm=true")
+
+    assert calls == [True, False, True]
+
+
+def test_trending_cache_invalidated_when_articles_change(seeded_state, monkeypatch):
+    """Replacing the article set drops the cached trends so the next call recomputes."""
+    calls = []
+
+    def fake_detect_trends(articles, use_llm=True):
+        calls.append(use_llm)
+        return _SAMPLE_TRENDS
+
+    monkeypatch.setattr(trending_routes, "detect_trends", fake_detect_trends)
+
+    client.get("/api/trending")
+    assert len(calls) == 1
+
+    seeded_state.set_articles(
+        [Article(title="Fresh story", source="S", url="http://example.com/fresh", summary="f")]
+    )
+
+    client.get("/api/trending")
+    assert len(calls) == 2
+
+
+def test_relationships_second_call_uses_cache(seeded_state, monkeypatch):
+    """A repeat /relationships request reuses the cached analysis."""
+    calls = []
+
+    def fake_analyze(articles, use_llm=True):
+        calls.append(use_llm)
+        return _SAMPLE_RELATIONSHIPS
+
+    monkeypatch.setattr(similarity_routes, "analyze_article_relationships", fake_analyze)
+
+    first = client.get("/api/relationships")
+    second = client.get("/api/relationships")
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    assert first.json()["total_articles"] == 2
+    assert len(calls) == 1
+
+
+def test_comparison_and_bias_share_one_computation(seeded_state, monkeypatch):
+    """/comparison and /comparison/bias compute compare_all_stories at most once.
+
+    Also guards the empty-result case: an empty comparisons list is a valid
+    cached value and must not trigger a recompute on the next request.
+    """
+    calls = []
+
+    def fake_compare_all(articles):
+        calls.append(1)
+        return []
+
+    monkeypatch.setattr(comparison_routes, "compare_all_stories", fake_compare_all)
+
+    assert client.get("/api/comparison").status_code == 200
+    assert client.get("/api/comparison/bias").status_code == 200
+    assert client.get("/api/comparison").status_code == 200
+
+    assert len(calls) == 1  # one computation shared across all three requests
+
+
+def test_comparison_cache_invalidated_when_articles_change(seeded_state, monkeypatch):
+    """Replacing the article set drops the cached comparisons so the next call recomputes."""
+    calls = []
+
+    def fake_compare_all(articles):
+        calls.append(1)
+        return []
+
+    monkeypatch.setattr(comparison_routes, "compare_all_stories", fake_compare_all)
+
+    client.get("/api/comparison")
+    assert len(calls) == 1
+
+    seeded_state.set_articles(
+        [
+            Article(title="One", source="S1", url="http://example.com/one", summary="1"),
+            Article(title="Two", source="S2", url="http://example.com/two", summary="2"),
+        ]
+    )
+
+    client.get("/api/comparison")
+    assert len(calls) == 2

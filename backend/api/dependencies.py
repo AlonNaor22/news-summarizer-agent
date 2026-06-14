@@ -50,8 +50,14 @@ class AppState:
         self.collection_name: str = f"session-{suffix}"
         self.articles: list[Article] = []
         self.qa_chain: NewsQAChain = NewsQAChain(collection_name=self.collection_name)
-        self.trends: dict = {}
-        self.relationships: dict = {}
+        # Per-session caches for the expensive LLM analyses. Each is invalidated
+        # whenever the article set changes (see set_articles / clear). The trends
+        # and relationships caches also record the use_llm flag they were computed
+        # with, so a request with a different flag recomputes instead of getting a
+        # mismatched result.
+        self.trends_cache: dict | None = None
+        self.relationships_cache: dict | None = None
+        self.comparisons_cache: list | None = None
 
         if self.session_id:
             self._hydrate_from_db()
@@ -104,11 +110,13 @@ class AppState:
     def set_articles(self, articles: list[Article]) -> None:
         """Replace the in-memory article set and persist it to the database.
 
-        Resets the Q&A chain's chat history (in-memory and persisted) because
-        a new article set invalidates prior conversation context.
+        Resets the Q&A chain's chat history (in-memory and persisted) and the
+        derived-analysis caches, because a new article set invalidates prior
+        conversation context and any cached trends/relationships/comparisons.
         """
         self.articles = articles
         self.qa_chain.load_articles(articles)
+        self._invalidate_caches()
 
         if not self.session_id:
             return
@@ -119,6 +127,12 @@ class AppState:
             clear_messages(self.session_id)
         except Exception:
             logger.warning("Failed to persist articles for session", exc_info=True)
+
+    def _invalidate_caches(self) -> None:
+        """Drop the derived-analysis caches after the article set changes."""
+        self.trends_cache = None
+        self.relationships_cache = None
+        self.comparisons_cache = None
 
     def persist_qa_exchange(self, question: str, answer: str) -> None:
         """Append a user question + assistant answer pair to the persisted history."""
@@ -166,8 +180,7 @@ class AppState:
 
         self.articles = []
         self.qa_chain = NewsQAChain(collection_name=self.collection_name)
-        self.trends = {}
-        self.relationships = {}
+        self._invalidate_caches()
 
 
 class SessionStore:
