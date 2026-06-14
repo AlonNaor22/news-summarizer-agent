@@ -65,15 +65,16 @@ flowchart LR
 
 ### Article Processing Pipeline
 
-Each fetch request runs articles through a sequential pipeline of Claude-powered steps:
+Each fetch request runs articles through a Claude-powered pipeline. Summarization comes first; categorization and tagging then run concurrently (both need only the summary), and sentiment runs last:
 
 ```mermaid
 flowchart LR
     RSS["RSS / NewsAPI"] --> Fetch["news_fetcher\nparse & normalise"]
     Fetch --> Sum["summarizer\n2–3 sentence summary"]
     Sum --> Cat["categorizer\nPrimary + Secondary topics"]
-    Cat --> Tag["tagger\nkeywords · people · orgs"]
-    Tag --> Sent["sentiment\npositive / neutral / negative"]
+    Sum --> Tag["tagger\nkeywords · people · orgs"]
+    Cat --> Sent["sentiment\npositive / neutral / negative"]
+    Tag --> Sent
     Sent --> Store["session AppState\n(keyed by X-Session-Id)"]
 ```
 
@@ -443,7 +444,7 @@ Honest trade-offs in the current implementation — the kind of things you'd add
 - **Single-process only**: the session dict isn't shared across workers, so `uvicorn --workers N > 1` would route the same session ID to different states depending on which worker handles the request. Stick to a single worker, or move sessions to Redis.
 - **No authentication**: session IDs are bearer-token-equivalent. Anyone with a session ID has full access to that session's data; share a screen-recording with the header visible and you've shared the session.
 - **No per-session rate limiting**: rate limits are by client IP (`slowapi`). Two browsers behind the same NAT share the budget.
-- **Single-node concurrency**: per-article Claude calls run concurrently within each pipeline stage via `asyncio.gather` (throttled by `LLM_CONCURRENCY=5` in [config.py](config.py)), but the four stages still run serially. Going stage-parallel would require dependency tracking (tag and sentiment both consume the summary) — left as future work.
+- **Single-node concurrency**: per-article Claude calls run concurrently within each stage via `asyncio.gather` (throttled by `LLM_CONCURRENCY=5` in [config.py](config.py)). Across stages, categorization and tagging overlap — both depend only on the summary — sharing one semaphore so their combined call rate stays capped; summarization still precedes them and sentiment runs last.
 
 ## Contributing
 

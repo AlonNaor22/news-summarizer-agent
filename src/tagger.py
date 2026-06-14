@@ -167,8 +167,15 @@ async def tag_article_async(article: Article) -> Article:
     return article
 
 
-async def tag_articles_async(articles: list[Article]) -> list[Article]:
-    """Tag every article concurrently, throttled by a semaphore."""
+async def tag_articles_async(
+    articles: list[Article], sem: asyncio.Semaphore | None = None
+) -> list[Article]:
+    """Tag every article concurrently, throttled by a semaphore.
+
+    ``sem`` lets a caller share one concurrency limit across stages that run at
+    the same time (see :func:`src.pipeline.process_articles_async`). When
+    omitted, the stage uses its own ``LLM_CONCURRENCY`` semaphore.
+    """
 
     logger.info("=" * 50)
     logger.info(
@@ -177,7 +184,7 @@ async def tag_articles_async(articles: list[Article]) -> list[Article]:
     )
     logger.info("=" * 50)
 
-    sem = asyncio.Semaphore(LLM_CONCURRENCY)
+    sem = sem or asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
     async def _one(idx: int, article: Article) -> Article:

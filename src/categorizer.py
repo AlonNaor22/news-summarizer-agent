@@ -194,8 +194,15 @@ async def categorize_article_async(article: Article) -> Article:
     return article
 
 
-async def categorize_articles_async(articles: list[Article]) -> list[Article]:
-    """Categorize every article concurrently, throttled by a semaphore."""
+async def categorize_articles_async(
+    articles: list[Article], sem: asyncio.Semaphore | None = None
+) -> list[Article]:
+    """Categorize every article concurrently, throttled by a semaphore.
+
+    ``sem`` lets a caller share one concurrency limit across stages that run at
+    the same time (see :func:`src.pipeline.process_articles_async`). When
+    omitted, the stage uses its own ``LLM_CONCURRENCY`` semaphore.
+    """
     logger.info("=" * 50)
     logger.info(
         "CATEGORIZING ARTICLES (async, concurrency=%d)",
@@ -203,7 +210,7 @@ async def categorize_articles_async(articles: list[Article]) -> list[Article]:
     )
     logger.info("=" * 50)
 
-    sem = asyncio.Semaphore(LLM_CONCURRENCY)
+    sem = sem or asyncio.Semaphore(LLM_CONCURRENCY)
     total = len(articles)
 
     async def _one(idx: int, article: Article) -> Article:
